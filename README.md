@@ -20,7 +20,8 @@ todo edit ID TEXT...
 todo del ID
 ```
 
-`todo ls` is an alias for `todo list`.
+`todo new`, `todo ls`, and `todo rm` are aliases for `todo add`, `todo list`,
+and `todo del` respectively.
 
 Filters are combined with AND. Plain words are case-insensitive description
 substrings. A number selects a task by ID, `+tag` requires a tag, `-tag`

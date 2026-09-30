@@ -10,19 +10,58 @@ import (
 )
 
 func TestHelp(t *testing.T) {
-	var stdout bytes.Buffer
-	if err := Execute([]string{"--help"}, "1.2.3", &stdout); err != nil {
-		t.Fatal(err)
+	for _, command := range []string{"help", "--help", "-h"} {
+		t.Run(command, func(t *testing.T) {
+			var stdout bytes.Buffer
+			if err := Execute([]string{command}, "1.2.3", &stdout); err != nil {
+				t.Fatal(err)
+			}
+			for _, expected := range []string{
+				"todo add TEXT...",
+				"todo help",
+				"todo new = todo add",
+				"Task syntax:",
+				"+TAG     add a tag",
+				"-TAG     remove a tag",
+				"Filters are combined with AND",
+				"TODO_DB_FILE",
+			} {
+				if !strings.Contains(stdout.String(), expected) {
+					t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())
+				}
+			}
+			if strings.Contains(stdout.String(), "**") || strings.Contains(stdout.String(), "\x1b[") {
+				t.Fatalf("redirected help contains formatting markup: %q", stdout.String())
+			}
+		})
 	}
-	for _, expected := range []string{
-		"todo add TEXT...",
-		"todo list FILTER...",
-		"todo edit ID TEXT...",
-		"todo del ID",
-		"12       task ID is 12",
-	} {
-		if !strings.Contains(stdout.String(), expected) {
-			t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())
+}
+
+func TestManualBoldFormatting(t *testing.T) {
+	formatted := formatManual(true)
+	for _, expected := range []string{"\x1b[1mUsage:\x1b[0m\n\n", "\x1b[1mAliases:\x1b[0m\n\n"} {
+		if !strings.Contains(formatted, expected) {
+			t.Fatalf("formatted manual does not contain %q:\n%s", expected, formatted)
+		}
+	}
+	if strings.Contains(formatted, "**") {
+		t.Fatalf("formatted manual contains source markers:\n%s", formatted)
+	}
+}
+
+func TestMainUsageIsConcise(t *testing.T) {
+	err := Execute(nil, "1.2.3", &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected usage error")
+	}
+	for _, expected := range []string{"todo add TEXT...", "todo help"} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("usage does not contain %q:\n%s", expected, err)
+		}
+	}
+	for _, unwanted := range []string{"Task syntax:", "Filters are combined", "+TAG", "Aliases:", "Run 'todo help'"} {
+		if strings.Contains(err.Error(), unwanted) {
+			t.Fatalf("usage unexpectedly contains %q:\n%s", unwanted, err)
 		}
 	}
 }
@@ -117,7 +156,7 @@ func TestCLIWorkflow(t *testing.T) {
 	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 
 	var stdout bytes.Buffer
-	if err := Execute([]string{"add", "Prepare", "deployment", "+now"}, "test", &stdout); err != nil {
+	if err := Execute([]string{"new", "Prepare", "deployment", "+now"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := stdout.String(), "1 Prepare deployment +now\n"; got != want {
@@ -149,7 +188,7 @@ func TestCLIWorkflow(t *testing.T) {
 		t.Fatalf("edit output = %q, want %q", got, want)
 	}
 
-	if err := Execute([]string{"del", "1"}, "test", &stdout); err != nil {
+	if err := Execute([]string{"rm", "1"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()

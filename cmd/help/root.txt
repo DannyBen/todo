@@ -1,0 +1,52 @@
+Todo - A lightweight project todo list
+
+**Usage:**
+
+  todo add TEXT...
+  todo list FILTER...
+  todo edit ID TEXT...
+  todo del ID
+  todo help
+
+**Aliases:**
+
+  todo new = todo add
+  todo ls  = todo list
+  todo rm  = todo del
+
+**Task syntax:**
+
+  WORD...  description text
+  +TAG     add a tag
+  -TAG     remove a tag
+  @ID      add a task reference
+  -@ID     remove a task reference
+
+The plus sign always means add and the minus sign always means remove when the
+token matches the syntax above. These operations have the same meaning in every
+command; removals during `todo add` are accepted and have no effect. A standalone
+`-` or `--` is ordinary description text.
+
+During `todo edit`, ordinary text replaces the description. When an edit contains
+only tag and reference operations, the existing description remains unchanged.
+
+**List filters:**
+
+  WORD     description contains WORD, case-insensitively
+  ID       task ID equals ID
+  +TAG     task has TAG
+  -TAG     task does not have TAG
+  @ID      task references ID
+  -@ID     task does not reference ID
+
+Filters are combined with AND. The `=` prefix is reserved for future use.
+
+**Storage:**
+
+  The default database is `.todo.sqlite` in the nearest Git root, or the current
+  directory outside Git. Set TODO_DB_FILE to use an exact database path.
+
+**Output:**
+
+  Tasks use the stable format `ID DESCRIPTION +TAG @REFERENCE`. Terminal output
+  adds color and wrapping; redirected output remains plain, one task per line.

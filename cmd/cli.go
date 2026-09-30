@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -21,15 +22,11 @@ Usage:
   todo list FILTER...
   todo edit ID TEXT...
   todo del ID
-
-Filters are combined with AND:
-  word     description contains word
-  12       task ID is 12
-  +tag     task has tag
-  -tag     task does not have tag
-  @12      task references task 12
-  -@12     task does not reference task 12
+  todo help
 `
+
+//go:embed help/root.txt
+var manual string
 
 type usageError struct {
 	message string
@@ -43,13 +40,19 @@ func Execute(args []string, version string, stdout io.Writer) error {
 	}
 
 	command := args[0]
-	if command == "ls" {
+	switch command {
+	case "ls":
 		command = "list"
+	case "new":
+		command = "add"
+	case "rm":
+		command = "del"
 	}
 
 	switch command {
 	case "help", "--help", "-h":
-		_, err := fmt.Fprint(stdout, usage)
+		_, terminal := terminalWriter(stdout)
+		_, err := fmt.Fprint(stdout, formatManual(terminal && os.Getenv("NO_COLOR") == ""))
 		return err
 	case "version", "--version":
 		_, err := fmt.Fprintln(stdout, version)
@@ -81,6 +84,20 @@ func Execute(args []string, version string, stdout io.Writer) error {
 		return runDelete(database, args[1:])
 	}
 	return nil
+}
+
+func formatManual(bold bool) string {
+	lines := strings.Split(manual, "\n")
+	for index, line := range lines {
+		if len(line) >= 4 && strings.HasPrefix(line, "**") && strings.HasSuffix(line, "**") {
+			caption := strings.TrimSuffix(strings.TrimPrefix(line, "**"), "**")
+			if bold {
+				caption = "\x1b[1m" + caption + "\x1b[0m"
+			}
+			lines[index] = caption
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func PrintError(err error, stderr io.Writer) {
