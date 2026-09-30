@@ -24,7 +24,8 @@ func TestHelp(t *testing.T) {
 				"+TAG     add a tag",
 				"-TAG     remove a tag",
 				"+ID      add a task connection",
-				"all other filters are combined with AND",
+				"separate filters are combined with AND",
+				"+TAG[/+TAG]  task has any listed TAG",
 				"TODO_DB_FILE",
 			} {
 				if !strings.Contains(stdout.String(), expected) {
@@ -340,5 +341,27 @@ func TestSlashSeparatedIDs(t *testing.T) {
 	}
 	if got, want := stdout.String(), "2 Second\n"; got != want {
 		t.Fatalf("list after multi-ID delete = %q, want %q", got, want)
+	}
+}
+
+func TestTagFilterOR(t *testing.T) {
+	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	for _, args := range [][]string{
+		{"add", "Low", "+low"},
+		{"add", "Maybe", "+maybe"},
+		{"add", "Other", "+other"},
+		{"add", "Deferred low", "+low", "+defer"},
+	} {
+		if err := Execute(args, "test", &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if err := Execute([]string{"list", "+low/+maybe", "-defer"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 Low +low\n2 Maybe +maybe\n"; got != want {
+		t.Fatalf("tag OR list = %q, want %q", got, want)
 	}
 }

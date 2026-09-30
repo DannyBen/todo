@@ -46,12 +46,13 @@ Removing the connection from either task removes it from both.
 
   WORD     description contains WORD, case-insensitively
   ID[/ID]  task ID equals any listed ID
-  +TAG     task has TAG
+  +TAG[/+TAG]  task has any listed TAG
   -TAG     task does not have TAG
   +ID      task is connected to ID
   -ID      task is not connected to ID
 
-IDs separated by `/` use OR; all other filters are combined with AND. 
+IDs and positive tags separated by `/` use OR within that filter group; all
+separate filters are combined with AND.
 
 **Storage:**
 

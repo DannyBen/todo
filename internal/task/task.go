@@ -24,7 +24,7 @@ type Change struct {
 
 type Filters struct {
 	Terms             []string
-	IncludeTags       []string
+	IncludeTagGroups  [][]string
 	ExcludeTags       []string
 	IncludeReferences []int64
 	ExcludeReferences []int64
@@ -89,6 +89,10 @@ func ParseFilters(args []string) (Filters, error) {
 		tokens = append(tokens, strings.Fields(arg)...)
 	}
 	for _, arg := range tokens {
+		if tags, ok := parseIncludedTagGroup(arg); ok {
+			filters.IncludeTagGroups = append(filters.IncludeTagGroups, tags)
+			continue
+		}
 		parsed := classifyToken(arg)
 		switch parsed.kind {
 		case removeReferenceToken:
@@ -96,7 +100,7 @@ func ParseFilters(args []string) (Filters, error) {
 		case addReferenceToken:
 			filters.IncludeReferences = append(filters.IncludeReferences, parsed.reference)
 		case addTagToken:
-			filters.IncludeTags = append(filters.IncludeTags, parsed.tag)
+			filters.IncludeTagGroups = append(filters.IncludeTagGroups, []string{parsed.tag})
 		case removeTagToken:
 			filters.ExcludeTags = append(filters.ExcludeTags, parsed.tag)
 		case textToken:
@@ -126,8 +130,8 @@ func (filters Filters) Match(item Task) bool {
 			return false
 		}
 	}
-	for _, tag := range filters.IncludeTags {
-		if !containsString(item.Tags, tag) {
+	for _, group := range filters.IncludeTagGroups {
+		if !containsAnyString(item.Tags, group) {
 			return false
 		}
 	}
@@ -163,6 +167,22 @@ func ParseIDs(value string) ([]int64, bool) {
 		ids = append(ids, id)
 	}
 	return uniqueIDs(ids), true
+}
+
+func parseIncludedTagGroup(value string) ([]string, bool) {
+	parts := strings.Split(value, "/")
+	if len(parts) < 2 {
+		return nil, false
+	}
+	tags := make([]string, 0, len(parts))
+	for _, part := range parts {
+		parsed := classifyToken(part)
+		if parsed.kind != addTagToken {
+			return nil, false
+		}
+		tags = append(tags, parsed.tag)
+	}
+	return uniqueStrings(tags), true
 }
 
 func Format(item Task) string {
@@ -335,6 +355,15 @@ func uniqueIDs(values []int64) []int64 {
 func containsString(values []string, wanted string) bool {
 	for _, value := range values {
 		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAnyString(values, wanted []string) bool {
+	for _, value := range wanted {
+		if containsString(values, value) {
 			return true
 		}
 	}

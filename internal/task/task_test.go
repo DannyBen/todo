@@ -111,6 +111,32 @@ func TestFiltersUseORWithinSlashSeparatedIDs(t *testing.T) {
 	}
 }
 
+func TestFiltersUseORWithinTagGroups(t *testing.T) {
+	filters, err := ParseFilters([]string{"+low/+maybe", "+active", "-defer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		tags []string
+		want bool
+	}{
+		{name: "first alternative", tags: []string{"low", "active"}, want: true},
+		{name: "second alternative", tags: []string{"maybe", "active"}, want: true},
+		{name: "both alternatives", tags: []string{"low", "maybe", "active"}, want: true},
+		{name: "missing required group", tags: []string{"active"}},
+		{name: "missing separate filter", tags: []string{"low"}},
+		{name: "excluded tag", tags: []string{"maybe", "active", "defer"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := filters.Match(Task{Tags: test.tags}); got != test.want {
+				t.Fatalf("Match() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestParseIDs(t *testing.T) {
 	ids, ok := ParseIDs("7/1/7")
 	if !ok || len(ids) != 2 || ids[0] != 7 || ids[1] != 1 {

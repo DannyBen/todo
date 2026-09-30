@@ -25,7 +25,9 @@ and `todo del` respectively.
 
 Filters are combined with AND. Plain words are case-insensitive description
 substrings. A number selects a task by ID, and slash-separated IDs such as `7/1`
-select either task. `+tag` requires a tag, `-tag` excludes it, `+12` requires a
+select either task. Slash-separated positive tags such as `+low/+maybe` require
+either tag. Separate filters remain AND, so `+low/+maybe -defer` means
+`(low OR maybe) AND NOT defer`. `-tag` excludes a tag, `+12` requires a
 connection, and `-12` excludes it. The `=` prefix is reserved for future use.
 
 Editing with ordinary text replaces the description. `+tag` and `-tag` add and

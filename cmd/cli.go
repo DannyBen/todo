@@ -251,10 +251,10 @@ func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	}
 
 	filters, filterErr := task.ParseFilters(args)
-	if filterErr == nil && len(filters.IncludeTags) == 1 && len(filters.Terms) == 0 &&
+	if filterErr == nil && len(filters.IncludeTagGroups) == 1 && len(filters.IncludeTagGroups[0]) == 1 && len(filters.Terms) == 0 &&
 		len(filters.ExcludeTags) == 0 && len(filters.IncludeReferences) == 0 &&
 		len(filters.ExcludeReferences) == 0 && len(filters.IDs) == 0 {
-		deleted, err := database.DeleteByTag(filters.IncludeTags[0])
+		deleted, err := database.DeleteByTag(filters.IncludeTagGroups[0][0])
 		if err != nil {
 			return err
 		}
