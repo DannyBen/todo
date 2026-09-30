@@ -23,7 +23,8 @@ func TestHelp(t *testing.T) {
 				"Task syntax:",
 				"+TAG     add a tag",
 				"-TAG     remove a tag",
-				"Filters are combined with AND",
+				"+ID      add a task connection",
+				"all other filters are combined with AND",
 				"TODO_DB_FILE",
 			} {
 				if !strings.Contains(stdout.String(), expected) {
@@ -54,12 +55,12 @@ func TestMainUsageIsConcise(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected usage error")
 	}
-	for _, expected := range []string{"todo add TEXT...", "todo help"} {
+	for _, expected := range []string{"todo add TEXT...", "todo del ID[/ID...]|+TAG", "todo help"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("usage does not contain %q:\n%s", expected, err)
 		}
 	}
-	for _, unwanted := range []string{"Task syntax:", "Filters are combined", "+TAG", "Aliases:", "Run 'todo help'"} {
+	for _, unwanted := range []string{"Task syntax:", "Filters are combined", "Aliases:", "Run 'todo help'"} {
 		if strings.Contains(err.Error(), unwanted) {
 			t.Fatalf("usage unexpectedly contains %q:\n%s", unwanted, err)
 		}
@@ -199,24 +200,24 @@ func TestCLIWorkflow(t *testing.T) {
 	}
 
 	stdout.Reset()
-	if err := Execute([]string{"add", "Review", "deployment", "-", "carefully", "+ready", "@1"}, "test", &stdout); err != nil {
+	if err := Execute([]string{"add", "Review", "deployment", "-", "carefully", "+ready", "+1"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := stdout.String(), "2 Review deployment - carefully +ready @1\n"; got != want {
+	if got, want := stdout.String(), "2 Review deployment - carefully +ready +1\n"; got != want {
 		t.Fatalf("second add output = %q, want %q", got, want)
 	}
 
 	stdout.Reset()
-	filters := []string{"ls", "deployment", "+ready", "-blocked", "@1", "2"}
+	filters := []string{"ls", "deployment", "+ready", "-blocked", "+1", "2"}
 	if err := Execute(filters, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := stdout.String(), "2 Review deployment - carefully +ready @1\n"; got != want {
+	if got, want := stdout.String(), "2 Review deployment - carefully +ready +1\n"; got != want {
 		t.Fatalf("filtered list output = %q, want %q", got, want)
 	}
 
 	stdout.Reset()
-	if err := Execute([]string{"edit", "2", "-ready", "+done", "-@1"}, "test", &stdout); err != nil {
+	if err := Execute([]string{"edit", "2", "-ready", "+done", "-1"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := stdout.String(), "2 Review deployment - carefully +done\n"; got != want {
@@ -244,5 +245,100 @@ func TestCLIWorkflow(t *testing.T) {
 	}
 	if got, want := stdout.String(), "3 Hello\n"; got != want {
 		t.Fatalf("add with removal output = %q, want %q", got, want)
+	}
+}
+
+func TestDeleteByTag(t *testing.T) {
+	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+
+	for _, args := range [][]string{
+		{"add", "First", "+done"},
+		{"add", "Second", "+done", "+keep", "+1"},
+		{"add", "Remaining", "+keep"},
+	} {
+		if err := Execute(args, "test", &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if err := Execute([]string{"rm", "+done"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 First +done +2\n2 Second +done +keep +1\n"; got != want {
+		t.Fatalf("bulk delete output = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"list"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "3 Remaining +keep\n"; got != want {
+		t.Fatalf("list after bulk delete = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"rm", "+done"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("empty bulk delete output = %q", stdout.String())
+	}
+}
+
+func TestDeleteRejectsOtherFilters(t *testing.T) {
+	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	for _, value := range []string{"-done", "+1", "word"} {
+		if err := Execute([]string{"rm", value}, "test", &bytes.Buffer{}); err == nil {
+			t.Fatalf("rm %q did not return an error", value)
+		}
+	}
+}
+
+func TestSlashSeparatedIDs(t *testing.T) {
+	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	for _, description := range []string{"First", "Second", "Third"} {
+		if err := Execute([]string{"add", description}, "test", &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	if err := Execute([]string{"list", "3/1"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 First\n3 Third\n"; got != want {
+		t.Fatalf("multi-ID list = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"edit", "3/1", "+batch"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "3 Third +batch\n1 First +batch\n"; got != want {
+		t.Fatalf("multi-ID edit = %q, want %q", got, want)
+	}
+
+	if err := Execute([]string{"edit", "1/99", "+rollback"}, "test", &bytes.Buffer{}); err == nil {
+		t.Fatal("multi-ID edit with missing task did not fail")
+	}
+	if err := Execute([]string{"edit", "1/2"}, "test", &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "require an edit expression") {
+		t.Fatalf("interactive multi-ID edit error = %v", err)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"rm", "3/1"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "3 Third +batch\n1 First +batch\n"; got != want {
+		t.Fatalf("multi-ID delete = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"list"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "2 Second\n"; got != want {
+		t.Fatalf("list after multi-ID delete = %q, want %q", got, want)
 	}
 }

@@ -131,30 +131,69 @@ func (store *Store) Edit(id int64, change task.Change) (task.Task, error) {
 	if err := requireTask(tx, id); err != nil {
 		return task.Task{}, err
 	}
-	if change.Description != nil {
-		if *change.Description == "" {
-			return task.Task{}, fmt.Errorf("task description cannot be empty")
-		}
-		if _, err := tx.Exec("UPDATE tasks SET description = ? WHERE id = ?", *change.Description, id); err != nil {
-			return task.Task{}, fmt.Errorf("update task %d: %w", id, err)
-		}
-	}
-	if err := removeTags(tx, id, change.RemoveTags); err != nil {
-		return task.Task{}, err
-	}
-	if err := addTags(tx, id, change.AddTags); err != nil {
-		return task.Task{}, err
-	}
-	if err := removeReferences(tx, id, change.RemoveReferences); err != nil {
-		return task.Task{}, err
-	}
-	if err := addReferences(tx, id, change.AddReferences); err != nil {
+	if err := applyChange(tx, id, change); err != nil {
 		return task.Task{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return task.Task{}, fmt.Errorf("commit edit: %w", err)
 	}
 	return store.Get(id)
+}
+
+func (store *Store) EditMany(ids []int64, change task.Change) ([]task.Task, error) {
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin multi-task edit: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, id := range ids {
+		if err := requireTask(tx, id); err != nil {
+			return nil, err
+		}
+	}
+	for _, id := range ids {
+		if err := applyChange(tx, id, change); err != nil {
+			return nil, err
+		}
+	}
+
+	updated := make([]task.Task, 0, len(ids))
+	for _, id := range ids {
+		item, err := get(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		updated = append(updated, item)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit multi-task edit: %w", err)
+	}
+	return updated, nil
+}
+
+func applyChange(tx *sql.Tx, id int64, change task.Change) error {
+	if change.Description != nil {
+		if *change.Description == "" {
+			return fmt.Errorf("task description cannot be empty")
+		}
+		if _, err := tx.Exec("UPDATE tasks SET description = ? WHERE id = ?", *change.Description, id); err != nil {
+			return fmt.Errorf("update task %d: %w", id, err)
+		}
+	}
+	if err := removeTags(tx, id, change.RemoveTags); err != nil {
+		return err
+	}
+	if err := addTags(tx, id, change.AddTags); err != nil {
+		return err
+	}
+	if err := removeReferences(tx, id, change.RemoveReferences); err != nil {
+		return err
+	}
+	if err := addReferences(tx, id, change.AddReferences); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (store *Store) Delete(id int64) (task.Task, error) {
@@ -183,6 +222,96 @@ func (store *Store) Delete(id int64) (task.Task, error) {
 		return task.Task{}, fmt.Errorf("commit delete: %w", err)
 	}
 	return item, nil
+}
+
+func (store *Store) DeleteMany(ids []int64) ([]task.Task, error) {
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin multi-task deletion: %w", err)
+	}
+	defer tx.Rollback()
+
+	deleted := make([]task.Task, 0, len(ids))
+	for _, id := range ids {
+		item, err := get(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		deleted = append(deleted, item)
+	}
+	for _, id := range ids {
+		result, err := tx.Exec("DELETE FROM tasks WHERE id = ?", id)
+		if err != nil {
+			return nil, fmt.Errorf("delete task %d: %w", id, err)
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("confirm deletion of task %d: %w", id, err)
+		}
+		if changed != 1 {
+			return nil, fmt.Errorf("task %d disappeared during multi-task deletion", id)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit multi-task deletion: %w", err)
+	}
+	return deleted, nil
+}
+
+func (store *Store) DeleteByTag(tag string) ([]task.Task, error) {
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tag deletion: %w", err)
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query("SELECT task_id FROM tags WHERE tag = ? ORDER BY task_id", tag)
+	if err != nil {
+		return nil, fmt.Errorf("find tasks tagged +%s: %w", tag, err)
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("read task tagged +%s: %w", tag, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("read tasks tagged +%s: %w", tag, err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close tasks tagged +%s: %w", tag, err)
+	}
+
+	deleted := make([]task.Task, 0, len(ids))
+	for _, id := range ids {
+		item, err := get(tx, id)
+		if err != nil {
+			return nil, err
+		}
+		deleted = append(deleted, item)
+	}
+	for _, id := range ids {
+		result, err := tx.Exec("DELETE FROM tasks WHERE id = ?", id)
+		if err != nil {
+			return nil, fmt.Errorf("delete task %d: %w", id, err)
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("confirm deletion of task %d: %w", id, err)
+		}
+		if changed != 1 {
+			return nil, fmt.Errorf("task %d disappeared during tag deletion", id)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tag deletion: %w", err)
+	}
+	return deleted, nil
 }
 
 func (store *Store) Get(id int64) (task.Task, error) {
@@ -309,11 +438,11 @@ func addReferences(tx *sql.Tx, id int64, references []int64) error {
 			return fmt.Errorf("task %d cannot reference itself", id)
 		}
 		if err := requireTask(tx, reference); err != nil {
-			return fmt.Errorf("add reference @%d to task %d: %w", reference, id, err)
+			return fmt.Errorf("add connection +%d to task %d: %w", reference, id, err)
 		}
 		first, second := connectionIDs(id, reference)
 		if _, err := tx.Exec("INSERT OR IGNORE INTO task_connections (task_id_a, task_id_b) VALUES (?, ?)", first, second); err != nil {
-			return fmt.Errorf("add reference @%d to task %d: %w", reference, id, err)
+			return fmt.Errorf("add connection +%d to task %d: %w", reference, id, err)
 		}
 	}
 	return nil
@@ -323,7 +452,7 @@ func removeReferences(tx *sql.Tx, id int64, references []int64) error {
 	for _, reference := range references {
 		first, second := connectionIDs(id, reference)
 		if _, err := tx.Exec("DELETE FROM task_connections WHERE task_id_a = ? AND task_id_b = ?", first, second); err != nil {
-			return fmt.Errorf("remove reference @%d from task %d: %w", reference, id, err)
+			return fmt.Errorf("remove connection -%d from task %d: %w", reference, id, err)
 		}
 	}
 	return nil

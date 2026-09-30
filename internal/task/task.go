@@ -28,7 +28,23 @@ type Filters struct {
 	ExcludeTags       []string
 	IncludeReferences []int64
 	ExcludeReferences []int64
-	ID                *int64
+	IDs               []int64
+}
+
+type tokenKind uint8
+
+const (
+	textToken tokenKind = iota
+	addTagToken
+	removeTagToken
+	addReferenceToken
+	removeReferenceToken
+)
+
+type parsedToken struct {
+	kind      tokenKind
+	tag       string
+	reference int64
 }
 
 func ParseChange(args []string) (Change, error) {
@@ -40,25 +56,16 @@ func ParseChange(args []string) (Change, error) {
 	}
 
 	for _, arg := range tokens {
-		removedReference, removesReference := parseRemovedReference(arg)
-		removedTag, removesTag := parseRemovedTag(arg)
-		switch {
-		case removesReference:
-			change.RemoveReferences = append(change.RemoveReferences, removedReference)
-		case strings.HasPrefix(arg, "@"):
-			id, err := parseReference(arg[1:], arg)
-			if err != nil {
-				return Change{}, err
-			}
-			change.AddReferences = append(change.AddReferences, id)
-		case strings.HasPrefix(arg, "+"):
-			tag, err := parseTag(arg[1:], arg)
-			if err != nil {
-				return Change{}, err
-			}
-			change.AddTags = append(change.AddTags, tag)
-		case removesTag:
-			change.RemoveTags = append(change.RemoveTags, removedTag)
+		parsed := classifyToken(arg)
+		switch parsed.kind {
+		case removeReferenceToken:
+			change.RemoveReferences = append(change.RemoveReferences, parsed.reference)
+		case addReferenceToken:
+			change.AddReferences = append(change.AddReferences, parsed.reference)
+		case addTagToken:
+			change.AddTags = append(change.AddTags, parsed.tag)
+		case removeTagToken:
+			change.RemoveTags = append(change.RemoveTags, parsed.tag)
 		default:
 			words = append(words, arg)
 		}
@@ -82,33 +89,25 @@ func ParseFilters(args []string) (Filters, error) {
 		tokens = append(tokens, strings.Fields(arg)...)
 	}
 	for _, arg := range tokens {
-		removedReference, removesReference := parseRemovedReference(arg)
-		removedTag, removesTag := parseRemovedTag(arg)
-		switch {
-		case removesReference:
-			filters.ExcludeReferences = append(filters.ExcludeReferences, removedReference)
-		case strings.HasPrefix(arg, "@"):
-			id, err := parseReference(arg[1:], arg)
-			if err != nil {
-				return Filters{}, err
+		parsed := classifyToken(arg)
+		switch parsed.kind {
+		case removeReferenceToken:
+			filters.ExcludeReferences = append(filters.ExcludeReferences, parsed.reference)
+		case addReferenceToken:
+			filters.IncludeReferences = append(filters.IncludeReferences, parsed.reference)
+		case addTagToken:
+			filters.IncludeTags = append(filters.IncludeTags, parsed.tag)
+		case removeTagToken:
+			filters.ExcludeTags = append(filters.ExcludeTags, parsed.tag)
+		case textToken:
+			if strings.HasPrefix(arg, "=") {
+				return Filters{}, fmt.Errorf("filter prefix = is reserved")
 			}
-			filters.IncludeReferences = append(filters.IncludeReferences, id)
-		case strings.HasPrefix(arg, "+"):
-			tag, err := parseTag(arg[1:], arg)
-			if err != nil {
-				return Filters{}, err
-			}
-			filters.IncludeTags = append(filters.IncludeTags, tag)
-		case removesTag:
-			filters.ExcludeTags = append(filters.ExcludeTags, removedTag)
-		case strings.HasPrefix(arg, "="):
-			return Filters{}, fmt.Errorf("filter prefix = is reserved")
-		default:
-			if id, err := strconv.ParseInt(arg, 10, 64); err == nil && id > 0 {
-				if filters.ID != nil {
+			if ids, ok := ParseIDs(arg); ok {
+				if len(filters.IDs) > 0 {
 					return Filters{}, fmt.Errorf("only one task ID filter is allowed")
 				}
-				filters.ID = &id
+				filters.IDs = ids
 			} else {
 				filters.Terms = append(filters.Terms, strings.ToLower(arg))
 			}
@@ -118,7 +117,7 @@ func ParseFilters(args []string) (Filters, error) {
 }
 
 func (filters Filters) Match(item Task) bool {
-	if filters.ID != nil && item.ID != *filters.ID {
+	if len(filters.IDs) > 0 && !containsID(filters.IDs, item.ID) {
 		return false
 	}
 	description := strings.ToLower(item.Description)
@@ -148,6 +147,22 @@ func (filters Filters) Match(item Task) bool {
 		}
 	}
 	return true
+}
+
+func ParseIDs(value string) ([]int64, bool) {
+	parts := strings.Split(value, "/")
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		if !allDigits(part) {
+			return nil, false
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id < 1 {
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return uniqueIDs(ids), true
 }
 
 func Format(item Task) string {
@@ -196,8 +211,12 @@ func format(item Task, width, indent int, color bool) string {
 	references := append([]int64(nil), item.References...)
 	sort.Slice(references, func(i, j int) bool { return references[i] < references[j] })
 	for _, id := range references {
-		formatted := "@" + strconv.FormatInt(id, 10)
-		tokens = append(tokens, displayToken{plain: formatted, styled: formatted})
+		formatted := "+" + strconv.FormatInt(id, 10)
+		styled := formatted
+		if color {
+			styled = "\x1b[1;35m" + formatted + "\x1b[0m"
+		}
+		tokens = append(tokens, displayToken{plain: formatted, styled: styled})
 	}
 
 	if width <= 0 {
@@ -233,39 +252,60 @@ func format(item Task, width, indent int, color bool) string {
 	return result.String()
 }
 
-func parseTag(value, original string) (string, error) {
-	if !validTag(value) {
-		return "", fmt.Errorf("invalid tag operation %q", original)
+func classifyToken(value string) parsedToken {
+	if len(value) < 2 || (value[0] != '+' && value[0] != '-') {
+		return parsedToken{kind: textToken}
 	}
-	return value, nil
+
+	operand := value[1:]
+	if allDigits(operand) {
+		reference, err := strconv.ParseInt(operand, 10, 64)
+		if err != nil || reference < 1 {
+			return parsedToken{kind: textToken}
+		}
+		if value[0] == '+' {
+			return parsedToken{kind: addReferenceToken, reference: reference}
+		}
+		return parsedToken{kind: removeReferenceToken, reference: reference}
+	}
+
+	if validTag(operand) {
+		if value[0] == '+' {
+			return parsedToken{kind: addTagToken, tag: operand}
+		}
+		return parsedToken{kind: removeTagToken, tag: operand}
+	}
+	return parsedToken{kind: textToken}
 }
 
 func validTag(value string) bool {
-	return value != "" && !strings.ContainsRune("+-@=", rune(value[0]))
+	if value == "" || !asciiLetterOrDigit(value[0]) {
+		return false
+	}
+	for index := 1; index < len(value); index++ {
+		if !asciiLetterOrDigit(value[index]) && value[index] != '-' && value[index] != '_' {
+			return false
+		}
+	}
+	return true
 }
 
-func parseRemovedTag(value string) (string, bool) {
-	if !strings.HasPrefix(value, "-") || strings.HasPrefix(value, "-@") {
-		return "", false
+func allDigits(value string) bool {
+	if value == "" {
+		return false
 	}
-	tag := value[1:]
-	return tag, validTag(tag)
+	for index := range len(value) {
+		if value[index] < '0' || value[index] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
-func parseRemovedReference(value string) (int64, bool) {
-	if !strings.HasPrefix(value, "-@") {
-		return 0, false
-	}
-	id, err := strconv.ParseInt(value[2:], 10, 64)
-	return id, err == nil && id > 0
-}
-
-func parseReference(value, original string) (int64, error) {
-	id, err := strconv.ParseInt(value, 10, 64)
-	if err != nil || id < 1 {
-		return 0, fmt.Errorf("invalid task reference %q", original)
-	}
-	return id, nil
+func asciiLetterOrDigit(value byte) bool {
+	return value >= 'a' && value <= 'z' ||
+		value >= 'A' && value <= 'Z' ||
+		value >= '0' && value <= '9'
 }
 
 func uniqueStrings(values []string) []string {

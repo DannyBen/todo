@@ -21,8 +21,8 @@ const usage = `Todo - A lightweight project todo list
 Usage:
   todo add TEXT...
   todo list FILTER...
-  todo edit ID [TEXT...]
-  todo del ID
+  todo edit ID[/ID...] [TEXT...]
+  todo del ID[/ID...]|+TAG
   todo help
 `
 
@@ -155,28 +155,42 @@ func runList(database *store.Store, args []string, stdout io.Writer) error {
 
 func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) < 1 {
-		return usageError{message: "usage: todo edit ID [TEXT...]"}
+		return usageError{message: "usage: todo edit ID[/ID...] [TEXT...]"}
 	}
-	id, err := parseID(args[0])
+	ids, err := parseIDs(args[0])
 	if err != nil {
 		return err
 	}
 	if len(args) == 1 {
-		return runEditor(database, id, stdin, stdout, stderr)
+		if len(ids) != 1 {
+			return fmt.Errorf("multiple task IDs require an edit expression")
+		}
+		return runEditor(database, ids[0], stdin, stdout, stderr)
 	}
-	return applyEdit(database, id, args[1:], stdout)
+	return applyEdits(database, ids, args[1:], stdout)
 }
 
 func applyEdit(database *store.Store, id int64, args []string, stdout io.Writer) error {
+	return applyEdits(database, []int64{id}, args, stdout)
+}
+
+func applyEdits(database *store.Store, ids []int64, args []string, stdout io.Writer) error {
 	change, err := task.ParseChange(args)
 	if err != nil {
 		return err
 	}
-	updated, err := database.Edit(id, change)
+	if len(ids) == 1 {
+		updated, err := database.Edit(ids[0], change)
+		if err != nil {
+			return err
+		}
+		return printTasks(stdout, []task.Task{updated})
+	}
+	updated, err := database.EditMany(ids, change)
 	if err != nil {
 		return err
 	}
-	return printTasks(stdout, []task.Task{updated})
+	return printTasks(stdout, updated)
 }
 
 func runEditor(database *store.Store, id int64, stdin io.Reader, stdout, stderr io.Writer) error {
@@ -218,25 +232,51 @@ func runEditor(database *store.Store, id int64, stdin io.Reader, stdout, stderr 
 
 func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	if len(args) != 1 {
-		return usageError{message: "usage: todo del ID"}
+		return usageError{message: "usage: todo del ID[/ID...]|+TAG"}
 	}
-	id, err := parseID(args[0])
-	if err != nil {
-		return err
+	ids, err := parseIDs(args[0])
+	if err == nil {
+		if len(ids) == 1 {
+			deleted, err := database.Delete(ids[0])
+			if err != nil {
+				return err
+			}
+			return printTasks(stdout, []task.Task{deleted})
+		}
+		deleted, err := database.DeleteMany(ids)
+		if err != nil {
+			return err
+		}
+		return printTasks(stdout, deleted)
 	}
-	deleted, err := database.Delete(id)
-	if err != nil {
-		return err
+
+	filters, filterErr := task.ParseFilters(args)
+	if filterErr == nil && len(filters.IncludeTags) == 1 && len(filters.Terms) == 0 &&
+		len(filters.ExcludeTags) == 0 && len(filters.IncludeReferences) == 0 &&
+		len(filters.ExcludeReferences) == 0 && len(filters.IDs) == 0 {
+		deleted, err := database.DeleteByTag(filters.IncludeTags[0])
+		if err != nil {
+			return err
+		}
+		return printTasks(stdout, deleted)
 	}
-	return printTasks(stdout, []task.Task{deleted})
+	return err
 }
 
 func parseID(value string) (int64, error) {
-	id, err := strconv.ParseInt(value, 10, 64)
-	if err != nil || id < 1 {
+	ids, err := parseIDs(value)
+	if err != nil || len(ids) != 1 {
 		return 0, fmt.Errorf("invalid task ID %q", value)
 	}
-	return id, nil
+	return ids[0], nil
+}
+
+func parseIDs(value string) ([]int64, error) {
+	ids, ok := task.ParseIDs(value)
+	if !ok {
+		return nil, fmt.Errorf("invalid task ID %q", value)
+	}
+	return ids, nil
 }
 
 func printTasks(stdout io.Writer, tasks []task.Task) error {

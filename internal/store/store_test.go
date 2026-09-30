@@ -39,7 +39,7 @@ func TestTaskLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := task.Format(first), "1 First task +ready @2"; got != want {
+	if got, want := task.Format(first), "1 First task +ready +2"; got != want {
 		t.Fatalf("connected task = %q, want %q", got, want)
 	}
 
@@ -84,6 +84,119 @@ func TestTaskLifecycle(t *testing.T) {
 	}
 	if got, want := tasks[1].ID, third.ID; got != want {
 		t.Fatalf("second listed ID = %d, want %d", got, want)
+	}
+}
+
+func TestDeleteByTag(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "todo.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	first, err := database.Add("First", []string{"done"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := database.Add("Second", []string{"done", "keep"}, []int64{first.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remaining, err := database.Add("Remaining", []string{"keep"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := database.DeleteByTag("done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deleted) != 2 || deleted[0].ID != first.ID || deleted[1].ID != second.ID {
+		t.Fatalf("deleted tasks = %#v", deleted)
+	}
+	if got, want := task.Format(deleted[0]), "1 First +done +2"; got != want {
+		t.Fatalf("first deleted task = %q, want %q", got, want)
+	}
+	if got, want := task.Format(deleted[1]), "2 Second +done +keep +1"; got != want {
+		t.Fatalf("second deleted task = %q, want %q", got, want)
+	}
+
+	tasks, err := database.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != remaining.ID {
+		t.Fatalf("remaining tasks = %#v", tasks)
+	}
+
+	deleted, err = database.DeleteByTag("missing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("deleted tasks for missing tag = %#v", deleted)
+	}
+}
+
+func TestEditAndDeleteManyAreAtomic(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "todo.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	first, err := database.Add("First", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := database.Add("Second", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, err := database.Add("Third", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := database.EditMany([]int64{first.ID, third.ID}, task.Change{AddTags: []string{"batch"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 2 || task.Format(updated[0]) != "1 First +batch" || task.Format(updated[1]) != "3 Third +batch" {
+		t.Fatalf("updated tasks = %#v", updated)
+	}
+
+	if _, err := database.EditMany([]int64{first.ID, 99}, task.Change{AddTags: []string{"rollback"}}); err == nil {
+		t.Fatal("edit with a missing task did not fail")
+	}
+	first, err = database.Get(first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Tags) != 1 || first.Tags[0] != "batch" {
+		t.Fatalf("first task after rollback = %#v", first)
+	}
+
+	if _, err := database.DeleteMany([]int64{second.ID, 99}); err == nil {
+		t.Fatal("delete with a missing task did not fail")
+	}
+	if _, err := database.Get(second.ID); err != nil {
+		t.Fatalf("second task was not rolled back: %v", err)
+	}
+
+	deleted, err := database.DeleteMany([]int64{third.ID, first.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deleted) != 2 || deleted[0].ID != third.ID || deleted[1].ID != first.ID {
+		t.Fatalf("deleted tasks = %#v", deleted)
+	}
+	tasks, err := database.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != second.ID {
+		t.Fatalf("remaining tasks = %#v", tasks)
 	}
 }
 
@@ -143,8 +256,8 @@ func TestOpenMigratesDirectedReferencesToConnections(t *testing.T) {
 	}
 	defer database.Close()
 	for id, want := range map[int64]string{
-		1: "1 First @2",
-		2: "2 Second @1",
+		1: "1 First +2",
+		2: "2 Second +1",
 	} {
 		item, err := database.Get(id)
 		if err != nil {
