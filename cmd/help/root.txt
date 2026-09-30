@@ -4,8 +4,8 @@ Todo - A lightweight project todo list
 
   todo add TEXT...
   todo list FILTER...
-  todo edit ID[/ID...] [TEXT...]
-  todo del ID[/ID...]|+TAG
+  todo edit ID [TEXT...]
+  todo del FILTER...
   todo help
 
 **Aliases:**
@@ -14,45 +14,48 @@ Todo - A lightweight project todo list
   todo ls  = todo list
   todo rm  = todo del
 
-**Task syntax:**
+**Arguments:**
 
-  WORD...  description text
-  +TAG     add a tag
-  -TAG     remove a tag
-  +ID      add a task connection
-  -ID      remove a task connection
+  TEXT    description text with optional tag or connection operations
+  FILTER  words, IDs, tags, or connections used to select tasks
+  ID      task ID; join multiple IDs with `/`
+  TAG     starts with a letter or digit; may contain hyphens or underscores
+
+Spaces between filters mean AND. `/` means OR within one filter group and may
+join different filter types.
+
+**Operators:**
+
+  +  Add or Has
+     todo edit 12 +defer
+     todo list +high
+
+  -  Remove or Doesn't Have
+     todo edit 12 -defer
+     todo list -blocked
+
+  /  OR when selecting tasks
+     todo list +maybe/+consider
+     todo rm 3/4/5
+     todo rm 3/4/5/+low
 
 After `+` or `-`, an all-digit value is a connection; any other valid value is a
-tag. Tags begin with a letter or digit and may also contain hyphens or
-underscores. A prefix is special only when the whole token matches this syntax:
+tag. A prefix is special only when the whole token is valid. For example,
 `+tag` adds a tag, while the separate words `+ tag` are ordinary text. Invalid
-operations and standalone `+`, `-`, or `--` are also ordinary text. Valid
-operations have the same meaning in every command; removals during `todo add`
-are accepted and have no effect.
+operations and standalone `+`, `-`, or `--` are also ordinary text. Removals
+during `todo add` are accepted and have no effect.
 
 During `todo edit`, ordinary text replaces the description. When an edit contains
 only tag and connection operations, the existing description remains unchanged.
 With no text, `todo edit ID` opens the current description, tags, and connections
 in $EDITOR (default: vi). Newlines and other whitespace are normalized to spaces.
 Multiple IDs separated by `/` receive the same non-interactive edit atomically.
-`todo del` prints every removed task so it can be recovered if needed. Passing
-multiple IDs separated by `/` deletes them atomically. Passing `+TAG` deletes all
-tasks with that exact tag; use `todo list +TAG` to preview.
+`todo del` accepts the same filters as `todo list`, deletes every match
+atomically, and prints each removed task so it can be recovered. Use `todo list`
+with the same filters to preview.
 
 Connections are symmetric: adding `+2` to task 1 also shows `+1` on task 2.
 Removing the connection from either task removes it from both.
-
-**List filters:**
-
-  WORD     description contains WORD, case-insensitively
-  ID[/ID]  task ID equals any listed ID
-  +TAG[/+TAG]  task has any listed TAG
-  -TAG     task does not have TAG
-  +ID      task is connected to ID
-  -ID      task is not connected to ID
-
-IDs and positive tags separated by `/` use OR within that filter group; all
-separate filters are combined with AND.
 
 **Storage:**
 

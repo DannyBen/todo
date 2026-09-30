@@ -21,8 +21,8 @@ const usage = `Todo - A lightweight project todo list
 Usage:
   todo add TEXT...
   todo list FILTER...
-  todo edit ID[/ID...] [TEXT...]
-  todo del ID[/ID...]|+TAG
+  todo edit ID [TEXT...]
+  todo del FILTER...
   todo help
 `
 
@@ -136,13 +136,21 @@ func runAdd(database *store.Store, args []string, stdout io.Writer) error {
 }
 
 func runList(database *store.Store, args []string, stdout io.Writer) error {
-	filters, err := task.ParseFilters(args)
+	matches, err := matchingTasks(database, args)
 	if err != nil {
 		return err
 	}
+	return printTasks(stdout, matches)
+}
+
+func matchingTasks(database *store.Store, args []string) ([]task.Task, error) {
+	filters, err := task.ParseFilters(args)
+	if err != nil {
+		return nil, err
+	}
 	tasks, err := database.List()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var matches []task.Task
 	for _, item := range tasks {
@@ -150,12 +158,12 @@ func runList(database *store.Store, args []string, stdout io.Writer) error {
 			matches = append(matches, item)
 		}
 	}
-	return printTasks(stdout, matches)
+	return matches, nil
 }
 
 func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) < 1 {
-		return usageError{message: "usage: todo edit ID[/ID...] [TEXT...]"}
+		return usageError{message: "usage: todo edit ID [TEXT...]"}
 	}
 	ids, err := parseIDs(args[0])
 	if err != nil {
@@ -231,11 +239,10 @@ func runEditor(database *store.Store, id int64, stdin io.Reader, stdout, stderr 
 }
 
 func runDelete(database *store.Store, args []string, stdout io.Writer) error {
-	if len(args) != 1 {
-		return usageError{message: "usage: todo del ID[/ID...]|+TAG"}
+	if len(args) == 0 {
+		return usageError{message: "usage: todo del FILTER..."}
 	}
-	ids, err := parseIDs(args[0])
-	if err == nil {
+	if ids, err := parseIDs(args[0]); len(args) == 1 && err == nil {
 		if len(ids) == 1 {
 			deleted, err := database.Delete(ids[0])
 			if err != nil {
@@ -250,17 +257,19 @@ func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 		return printTasks(stdout, deleted)
 	}
 
-	filters, filterErr := task.ParseFilters(args)
-	if filterErr == nil && len(filters.IncludeTagGroups) == 1 && len(filters.IncludeTagGroups[0]) == 1 && len(filters.Terms) == 0 &&
-		len(filters.ExcludeTags) == 0 && len(filters.IncludeReferences) == 0 &&
-		len(filters.ExcludeReferences) == 0 && len(filters.IDs) == 0 {
-		deleted, err := database.DeleteByTag(filters.IncludeTagGroups[0][0])
-		if err != nil {
-			return err
-		}
-		return printTasks(stdout, deleted)
+	matches, err := matchingTasks(database, args)
+	if err != nil {
+		return err
 	}
-	return err
+	ids := make([]int64, len(matches))
+	for index, item := range matches {
+		ids[index] = item.ID
+	}
+	deleted, err := database.DeleteMany(ids)
+	if err != nil {
+		return err
+	}
+	return printTasks(stdout, deleted)
 }
 
 func parseID(value string) (int64, error) {

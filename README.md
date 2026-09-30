@@ -16,19 +16,19 @@ $ todo list +done -blocked
 ```text
 todo add TEXT...
 todo list FILTER...
-todo edit ID[/ID...] [TEXT...]
-todo del ID[/ID...]|+TAG
+todo edit ID [TEXT...]
+todo del FILTER...
 ```
 
 `todo new`, `todo ls`, and `todo rm` are aliases for `todo add`, `todo list`,
 and `todo del` respectively.
 
-Filters are combined with AND. Plain words are case-insensitive description
-substrings. A number selects a task by ID, and slash-separated IDs such as `7/1`
-select either task. Slash-separated positive tags such as `+low/+maybe` require
-either tag. Separate filters remain AND, so `+low/+maybe -defer` means
-`(low OR maybe) AND NOT defer`. `-tag` excludes a tag, `+12` requires a
-connection, and `-12` excludes it. The `=` prefix is reserved for future use.
+Filters separated by spaces are combined with AND. Plain words are
+case-insensitive description substrings. `/` means OR within one filter group
+and may join words, IDs, tags, connections, or a mixture of them. For example,
+`+low/+maybe -defer` means `(low OR maybe) AND NOT defer`, while `3/4/+low`
+means task 3, task 4, or any task tagged `low`. `+12` requires a connection and
+`-12` excludes one. The `=` prefix is reserved for future use.
 
 Editing with ordinary text replaces the description. `+tag` and `-tag` add and
 remove tags without changing the description; `+12` and `-12` do the same for
@@ -47,10 +47,9 @@ Newlines and other whitespace are normalized to spaces so tasks remain one line.
 Slash-separated IDs apply one non-interactive edit to every selected task in a
 single transaction.
 
-Deleting prints every removed task so it can be recreated if needed. Passing an
-exact positive tag filter deletes all matching tasks atomically; for example,
-`todo del +done`. Slash-separated IDs are also deleted atomically. Use
-`todo list +done` or `todo list 7/1` to preview the affected tasks.
+Deleting accepts the same filters as listing, removes all matches atomically,
+and prints every removed task so it can be recreated if needed. Use `todo list`
+with the same filters to preview the affected tasks.
 
 Tasks are stored in `.todo.sqlite` at the nearest Git root. Set `TODO_DB_FILE`
 to use an exact database path instead.

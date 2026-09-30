@@ -18,14 +18,15 @@ func TestHelp(t *testing.T) {
 			}
 			for _, expected := range []string{
 				"todo add TEXT...",
+				"todo del FILTER...",
 				"todo help",
 				"todo new = todo add",
-				"Task syntax:",
-				"+TAG     add a tag",
-				"-TAG     remove a tag",
-				"+ID      add a task connection",
-				"separate filters are combined with AND",
-				"+TAG[/+TAG]  task has any listed TAG",
+				"Arguments:",
+				"Operators:",
+				"+  Add or Has",
+				"/  OR when selecting tasks",
+				"todo rm 3/4/5/+low",
+				"Spaces between filters mean AND",
 				"TODO_DB_FILE",
 			} {
 				if !strings.Contains(stdout.String(), expected) {
@@ -56,7 +57,7 @@ func TestMainUsageIsConcise(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected usage error")
 	}
-	for _, expected := range []string{"todo add TEXT...", "todo del ID[/ID...]|+TAG", "todo help"} {
+	for _, expected := range []string{"todo add TEXT...", "todo edit ID [TEXT...]", "todo del FILTER...", "todo help"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("usage does not contain %q:\n%s", expected, err)
 		}
@@ -103,7 +104,7 @@ func TestUsageErrors(t *testing.T) {
 		{name: "no command", want: "Todo - A lightweight project todo list"},
 		{name: "unknown command", args: []string{"nope"}, want: `unknown command "nope"`},
 		{name: "add without text", args: []string{"add"}, want: "usage: todo add TEXT..."},
-		{name: "delete without ID", args: []string{"del"}, want: "usage: todo del ID"},
+		{name: "delete without filter", args: []string{"del"}, want: "usage: todo del FILTER..."},
 		{name: "invalid edit ID", args: []string{"edit", "bad", "+done"}, want: `invalid task ID "bad"`},
 		{name: "invalid delete ID", args: []string{"del", "0"}, want: `invalid task ID "0"`},
 		{name: "reserved filter", args: []string{"list", "=1"}, want: "filter prefix = is reserved"},
@@ -249,7 +250,7 @@ func TestCLIWorkflow(t *testing.T) {
 	}
 }
 
-func TestDeleteByTag(t *testing.T) {
+func TestDeleteByTagFilter(t *testing.T) {
 	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 
 	for _, args := range [][]string{
@@ -287,12 +288,41 @@ func TestDeleteByTag(t *testing.T) {
 	}
 }
 
-func TestDeleteRejectsOtherFilters(t *testing.T) {
+func TestDeleteByMixedFilters(t *testing.T) {
 	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
-	for _, value := range []string{"-done", "+1", "word"} {
-		if err := Execute([]string{"rm", value}, "test", &bytes.Buffer{}); err == nil {
-			t.Fatalf("rm %q did not return an error", value)
+	for _, args := range [][]string{
+		{"add", "First", "+maybe"},
+		{"add", "Second", "+low"},
+		{"add", "Consider third", "+keep"},
+		{"add", "Remaining", "+keep"},
+	} {
+		if err := Execute(args, "test", &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
 		}
+	}
+
+	var stdout bytes.Buffer
+	if err := Execute([]string{"rm", "1/+low"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 First +maybe\n2 Second +low\n"; got != want {
+		t.Fatalf("mixed OR delete = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"rm", "consider", "+keep"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "3 Consider third +keep\n"; got != want {
+		t.Fatalf("AND delete = %q, want %q", got, want)
+	}
+
+	stdout.Reset()
+	if err := Execute([]string{"list"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "4 Remaining +keep\n"; got != want {
+		t.Fatalf("remaining tasks = %q, want %q", got, want)
 	}
 }
 

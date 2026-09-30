@@ -258,62 +258,6 @@ func (store *Store) DeleteMany(ids []int64) ([]task.Task, error) {
 	return deleted, nil
 }
 
-func (store *Store) DeleteByTag(tag string) ([]task.Task, error) {
-	tx, err := store.db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("begin tag deletion: %w", err)
-	}
-	defer tx.Rollback()
-
-	rows, err := tx.Query("SELECT task_id FROM tags WHERE tag = ? ORDER BY task_id", tag)
-	if err != nil {
-		return nil, fmt.Errorf("find tasks tagged +%s: %w", tag, err)
-	}
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("read task tagged +%s: %w", tag, err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, fmt.Errorf("read tasks tagged +%s: %w", tag, err)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("close tasks tagged +%s: %w", tag, err)
-	}
-
-	deleted := make([]task.Task, 0, len(ids))
-	for _, id := range ids {
-		item, err := get(tx, id)
-		if err != nil {
-			return nil, err
-		}
-		deleted = append(deleted, item)
-	}
-	for _, id := range ids {
-		result, err := tx.Exec("DELETE FROM tasks WHERE id = ?", id)
-		if err != nil {
-			return nil, fmt.Errorf("delete task %d: %w", id, err)
-		}
-		changed, err := result.RowsAffected()
-		if err != nil {
-			return nil, fmt.Errorf("confirm deletion of task %d: %w", id, err)
-		}
-		if changed != 1 {
-			return nil, fmt.Errorf("task %d disappeared during tag deletion", id)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit tag deletion: %w", err)
-	}
-	return deleted, nil
-}
-
 func (store *Store) Get(id int64) (task.Task, error) {
 	return get(store.db, id)
 }

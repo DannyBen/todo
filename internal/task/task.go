@@ -23,12 +23,24 @@ type Change struct {
 }
 
 type Filters struct {
-	Terms             []string
-	IncludeTagGroups  [][]string
-	ExcludeTags       []string
-	IncludeReferences []int64
-	ExcludeReferences []int64
-	IDs               []int64
+	groups [][]filterPredicate
+}
+
+type filterKind uint8
+
+const (
+	termFilter filterKind = iota
+	idFilter
+	includeTagFilter
+	excludeTagFilter
+	includeReferenceFilter
+	excludeReferenceFilter
+)
+
+type filterPredicate struct {
+	kind  filterKind
+	value string
+	id    int64
 }
 
 type tokenKind uint8
@@ -88,69 +100,81 @@ func ParseFilters(args []string) (Filters, error) {
 	for _, arg := range args {
 		tokens = append(tokens, strings.Fields(arg)...)
 	}
-	for _, arg := range tokens {
-		if tags, ok := parseIncludedTagGroup(arg); ok {
-			filters.IncludeTagGroups = append(filters.IncludeTagGroups, tags)
-			continue
-		}
-		parsed := classifyToken(arg)
-		switch parsed.kind {
-		case removeReferenceToken:
-			filters.ExcludeReferences = append(filters.ExcludeReferences, parsed.reference)
-		case addReferenceToken:
-			filters.IncludeReferences = append(filters.IncludeReferences, parsed.reference)
-		case addTagToken:
-			filters.IncludeTagGroups = append(filters.IncludeTagGroups, []string{parsed.tag})
-		case removeTagToken:
-			filters.ExcludeTags = append(filters.ExcludeTags, parsed.tag)
-		case textToken:
-			if strings.HasPrefix(arg, "=") {
-				return Filters{}, fmt.Errorf("filter prefix = is reserved")
+	for _, token := range tokens {
+		parts := strings.Split(token, "/")
+		group := make([]filterPredicate, 0, len(parts))
+		for _, part := range parts {
+			if part == "" {
+				return Filters{}, fmt.Errorf("invalid OR filter %q", token)
 			}
-			if ids, ok := ParseIDs(arg); ok {
-				if len(filters.IDs) > 0 {
-					return Filters{}, fmt.Errorf("only one task ID filter is allowed")
-				}
-				filters.IDs = ids
-			} else {
-				filters.Terms = append(filters.Terms, strings.ToLower(arg))
+			predicate, err := parseFilterPredicate(part)
+			if err != nil {
+				return Filters{}, err
 			}
+			group = append(group, predicate)
 		}
+		filters.groups = append(filters.groups, group)
 	}
 	return filters, nil
 }
 
 func (filters Filters) Match(item Task) bool {
-	if len(filters.IDs) > 0 && !containsID(filters.IDs, item.ID) {
-		return false
-	}
 	description := strings.ToLower(item.Description)
-	for _, term := range filters.Terms {
-		if !strings.Contains(description, term) {
-			return false
+	for _, group := range filters.groups {
+		matched := false
+		for _, predicate := range group {
+			if predicate.match(item, description) {
+				matched = true
+				break
+			}
 		}
-	}
-	for _, group := range filters.IncludeTagGroups {
-		if !containsAnyString(item.Tags, group) {
-			return false
-		}
-	}
-	for _, tag := range filters.ExcludeTags {
-		if containsString(item.Tags, tag) {
-			return false
-		}
-	}
-	for _, id := range filters.IncludeReferences {
-		if !containsID(item.References, id) {
-			return false
-		}
-	}
-	for _, id := range filters.ExcludeReferences {
-		if containsID(item.References, id) {
+		if !matched {
 			return false
 		}
 	}
 	return true
+}
+
+func parseFilterPredicate(value string) (filterPredicate, error) {
+	parsed := classifyToken(value)
+	switch parsed.kind {
+	case removeReferenceToken:
+		return filterPredicate{kind: excludeReferenceFilter, id: parsed.reference}, nil
+	case addReferenceToken:
+		return filterPredicate{kind: includeReferenceFilter, id: parsed.reference}, nil
+	case addTagToken:
+		return filterPredicate{kind: includeTagFilter, value: parsed.tag}, nil
+	case removeTagToken:
+		return filterPredicate{kind: excludeTagFilter, value: parsed.tag}, nil
+	}
+	if strings.HasPrefix(value, "=") {
+		return filterPredicate{}, fmt.Errorf("filter prefix = is reserved")
+	}
+	if allDigits(value) {
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || id < 1 {
+			return filterPredicate{}, fmt.Errorf("invalid task ID %q", value)
+		}
+		return filterPredicate{kind: idFilter, id: id}, nil
+	}
+	return filterPredicate{kind: termFilter, value: strings.ToLower(value)}, nil
+}
+
+func (predicate filterPredicate) match(item Task, description string) bool {
+	switch predicate.kind {
+	case idFilter:
+		return item.ID == predicate.id
+	case includeTagFilter:
+		return containsString(item.Tags, predicate.value)
+	case excludeTagFilter:
+		return !containsString(item.Tags, predicate.value)
+	case includeReferenceFilter:
+		return containsID(item.References, predicate.id)
+	case excludeReferenceFilter:
+		return !containsID(item.References, predicate.id)
+	default:
+		return strings.Contains(description, predicate.value)
+	}
 }
 
 func ParseIDs(value string) ([]int64, bool) {
@@ -167,22 +191,6 @@ func ParseIDs(value string) ([]int64, bool) {
 		ids = append(ids, id)
 	}
 	return uniqueIDs(ids), true
-}
-
-func parseIncludedTagGroup(value string) ([]string, bool) {
-	parts := strings.Split(value, "/")
-	if len(parts) < 2 {
-		return nil, false
-	}
-	tags := make([]string, 0, len(parts))
-	for _, part := range parts {
-		parsed := classifyToken(part)
-		if parsed.kind != addTagToken {
-			return nil, false
-		}
-		tags = append(tags, parsed.tag)
-	}
-	return uniqueStrings(tags), true
 }
 
 func Format(item Task) string {
@@ -355,15 +363,6 @@ func uniqueIDs(values []int64) []int64 {
 func containsString(values []string, wanted string) bool {
 	for _, value := range values {
 		if value == wanted {
-			return true
-		}
-	}
-	return false
-}
-
-func containsAnyString(values, wanted []string) bool {
-	for _, value := range wanted {
-		if containsString(values, value) {
 			return true
 		}
 	}

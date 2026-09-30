@@ -137,6 +137,28 @@ func TestFiltersUseORWithinTagGroups(t *testing.T) {
 	}
 }
 
+func TestFiltersUseORAcrossPredicateTypes(t *testing.T) {
+	filters, err := ParseFilters([]string{"3/4/+low", "-defer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []Task{
+		{ID: 3},
+		{ID: 4},
+		{ID: 9, Tags: []string{"low"}},
+	} {
+		if !filters.Match(item) {
+			t.Fatalf("expected task %#v to match", item)
+		}
+	}
+	if filters.Match(Task{ID: 9}) {
+		t.Fatal("unexpected match without an OR alternative")
+	}
+	if filters.Match(Task{ID: 3, Tags: []string{"defer"}}) {
+		t.Fatal("separate exclusion filter did not remain required")
+	}
+}
+
 func TestParseIDs(t *testing.T) {
 	ids, ok := ParseIDs("7/1/7")
 	if !ok || len(ids) != 2 || ids[0] != 7 || ids[1] != 1 {
@@ -174,9 +196,13 @@ func TestFiltersRejectNonMatches(t *testing.T) {
 	}
 }
 
-func TestFiltersRejectMultipleIDs(t *testing.T) {
-	if _, err := ParseFilters([]string{"1", "2"}); err == nil {
-		t.Fatal("expected multiple ID filter error")
+func TestFiltersUseANDBetweenGroups(t *testing.T) {
+	filters, err := ParseFilters([]string{"1", "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filters.Match(Task{ID: 1}) || filters.Match(Task{ID: 2}) {
+		t.Fatal("separate ID filters unexpectedly matched")
 	}
 }
 
@@ -196,8 +222,8 @@ func TestInvalidOperationsRemainPlainText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(filters.Terms, " "); got != want {
-		t.Fatalf("filter terms = %q, want %q", got, want)
+	if !filters.Match(Task{Description: want}) {
+		t.Fatalf("plain-text filters did not match %q", want)
 	}
 }
 
