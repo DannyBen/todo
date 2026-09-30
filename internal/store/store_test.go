@@ -49,8 +49,12 @@ func TestTaskLifecycle(t *testing.T) {
 		t.Fatalf("edited task = %q, want %q", got, want)
 	}
 
-	if err := database.Delete(first.ID); err != nil {
+	deleted, err := database.Delete(first.ID)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if got, want := task.Format(deleted), "1 First task +ready"; got != want {
+		t.Fatalf("deleted task = %q, want %q", got, want)
 	}
 	third, err := database.Add("Third task", nil, nil)
 	if err != nil {
@@ -90,7 +94,7 @@ func TestDeleteRemovesBacklinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := database.Delete(target.ID); err != nil {
+	if _, err := database.Delete(target.ID); err != nil {
 		t.Fatal(err)
 	}
 	source, err = database.Get(source.ID)
@@ -148,7 +152,8 @@ func TestMissingTasksAndInvalidReferences(t *testing.T) {
 			return err
 		}},
 		{name: "delete missing task", run: func() error {
-			return database.Delete(99)
+			_, err := database.Delete(99)
+			return err
 		}},
 	}
 	for _, test := range tests {

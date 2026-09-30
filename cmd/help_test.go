@@ -188,8 +188,12 @@ func TestCLIWorkflow(t *testing.T) {
 		t.Fatalf("edit output = %q, want %q", got, want)
 	}
 
+	stdout.Reset()
 	if err := Execute([]string{"rm", "1"}, "test", &stdout); err != nil {
 		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 Prepare deployment +now\n"; got != want {
+		t.Fatalf("delete output = %q, want %q", got, want)
 	}
 	stdout.Reset()
 	if err := Execute([]string{"list"}, "test", &stdout); err != nil {

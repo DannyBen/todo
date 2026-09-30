@@ -163,7 +163,7 @@ func format(item Task, width, indent int, color bool) string {
 	id := strconv.FormatInt(item.ID, 10)
 	styledID := id
 	if color {
-		styledID = "\x1b[33m" + id + "\x1b[0m"
+		styledID = "\x1b[1;33m" + id + "\x1b[0m"
 	}
 	tokens := []displayToken{{plain: id, styled: styledID}}
 	for _, word := range strings.Fields(item.Description) {
@@ -175,7 +175,7 @@ func format(item Task, width, indent int, color bool) string {
 		formatted := "+" + tag
 		styled := formatted
 		if color {
-			styled = "\x1b[1;35m" + formatted + "\x1b[0m"
+			styled = "\x1b[1;34m" + formatted + "\x1b[0m"
 		}
 		tokens = append(tokens, displayToken{plain: formatted, styled: styled})
 	}

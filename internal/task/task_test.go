@@ -128,7 +128,7 @@ func TestFormatSortsTagsAndReferences(t *testing.T) {
 
 func TestFormatColorColorsIDsAndTags(t *testing.T) {
 	item := Task{ID: 12, Description: "Ship", Tags: []string{"done"}, References: []int64{9}}
-	if got, want := FormatColor(item), "\x1b[33m12\x1b[0m Ship \x1b[1;35m+done\x1b[0m @9"; got != want {
+	if got, want := FormatColor(item), "\x1b[1;33m12\x1b[0m Ship \x1b[1;34m+done\x1b[0m @9"; got != want {
 		t.Fatalf("FormatColor() = %q, want %q", got, want)
 	}
 }

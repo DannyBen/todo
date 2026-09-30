@@ -81,7 +81,7 @@ func Execute(args []string, version string, stdout io.Writer) error {
 	case "edit":
 		return runEdit(database, args[1:], stdout)
 	case "del":
-		return runDelete(database, args[1:])
+		return runDelete(database, args[1:], stdout)
 	}
 	return nil
 }
@@ -167,7 +167,7 @@ func runEdit(database *store.Store, args []string, stdout io.Writer) error {
 	return printTasks(stdout, []task.Task{updated})
 }
 
-func runDelete(database *store.Store, args []string) error {
+func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	if len(args) != 1 {
 		return usageError{message: "usage: todo del ID"}
 	}
@@ -175,7 +175,11 @@ func runDelete(database *store.Store, args []string) error {
 	if err != nil {
 		return err
 	}
-	return database.Delete(id)
+	deleted, err := database.Delete(id)
+	if err != nil {
+		return err
+	}
+	return printTasks(stdout, []task.Task{deleted})
 }
 
 func parseID(value string) (int64, error) {

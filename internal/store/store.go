@@ -14,6 +14,11 @@ type Store struct {
 	db *sql.DB
 }
 
+type queryer interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 func Open(path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -115,31 +120,48 @@ func (store *Store) Edit(id int64, change task.Change) (task.Task, error) {
 	return store.Get(id)
 }
 
-func (store *Store) Delete(id int64) error {
-	result, err := store.db.Exec("DELETE FROM tasks WHERE id = ?", id)
+func (store *Store) Delete(id int64) (task.Task, error) {
+	tx, err := store.db.BeginTx(context.Background(), nil)
 	if err != nil {
-		return fmt.Errorf("delete task %d: %w", id, err)
+		return task.Task{}, fmt.Errorf("begin delete: %w", err)
+	}
+	defer tx.Rollback()
+
+	item, err := get(tx, id)
+	if err != nil {
+		return task.Task{}, err
+	}
+	result, err := tx.Exec("DELETE FROM tasks WHERE id = ?", id)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("delete task %d: %w", id, err)
 	}
 	changed, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("confirm deletion of task %d: %w", id, err)
+		return task.Task{}, fmt.Errorf("confirm deletion of task %d: %w", id, err)
 	}
 	if changed == 0 {
-		return fmt.Errorf("task %d not found", id)
+		return task.Task{}, fmt.Errorf("task %d not found", id)
 	}
-	return nil
+	if err := tx.Commit(); err != nil {
+		return task.Task{}, fmt.Errorf("commit delete: %w", err)
+	}
+	return item, nil
 }
 
 func (store *Store) Get(id int64) (task.Task, error) {
+	return get(store.db, id)
+}
+
+func get(source queryer, id int64) (task.Task, error) {
 	var item task.Task
-	err := store.db.QueryRow("SELECT id, description FROM tasks WHERE id = ?", id).Scan(&item.ID, &item.Description)
+	err := source.QueryRow("SELECT id, description FROM tasks WHERE id = ?", id).Scan(&item.ID, &item.Description)
 	if errors.Is(err, sql.ErrNoRows) {
 		return task.Task{}, fmt.Errorf("task %d not found", id)
 	}
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read task %d: %w", id, err)
 	}
-	if err := store.loadDetails(&item); err != nil {
+	if err := loadDetails(source, &item); err != nil {
 		return task.Task{}, err
 	}
 	return item, nil
@@ -166,15 +188,15 @@ func (store *Store) List() ([]task.Task, error) {
 		return nil, fmt.Errorf("read task list: %w", err)
 	}
 	for index := range tasks {
-		if err := store.loadDetails(&tasks[index]); err != nil {
+		if err := loadDetails(store.db, &tasks[index]); err != nil {
 			return nil, err
 		}
 	}
 	return tasks, nil
 }
 
-func (store *Store) loadDetails(item *task.Task) error {
-	tagRows, err := store.db.Query("SELECT tag FROM tags WHERE task_id = ? ORDER BY tag", item.ID)
+func loadDetails(source queryer, item *task.Task) error {
+	tagRows, err := source.Query("SELECT tag FROM tags WHERE task_id = ? ORDER BY tag", item.ID)
 	if err != nil {
 		return fmt.Errorf("read tags for task %d: %w", item.ID, err)
 	}
@@ -193,7 +215,7 @@ func (store *Store) loadDetails(item *task.Task) error {
 		return fmt.Errorf("read tags for task %d: %w", item.ID, err)
 	}
 
-	referenceRows, err := store.db.Query("SELECT reference_id FROM task_references WHERE task_id = ? ORDER BY reference_id", item.ID)
+	referenceRows, err := source.Query("SELECT reference_id FROM task_references WHERE task_id = ? ORDER BY reference_id", item.ID)
 	if err != nil {
 		return fmt.Errorf("read references for task %d: %w", item.ID, err)
 	}
