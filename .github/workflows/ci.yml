@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: todo-smoke
+          - os: macos-latest
+            binary: todo-smoke
+    env:
+      GOCACHE: ${{ github.workspace }}/.cache/go-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build binary
+        run: go build -o ${{ matrix.binary }} .
+
+      - name: Smoke test binary
+        run: ./${{ matrix.binary }} --version
