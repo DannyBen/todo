@@ -24,6 +24,16 @@ func TestParseChange(t *testing.T) {
 	}
 }
 
+func TestParseChangeNormalizesNewlines(t *testing.T) {
+	change, err := ParseChange([]string{"first line\nsecond\tline", "+done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if change.Description == nil || *change.Description != "first line second line" {
+		t.Fatalf("description = %v", change.Description)
+	}
+}
+
 func TestParseChangeDistinguishesTextFromRemovalSyntax(t *testing.T) {
 	change, err := ParseChange([]string{"Write", "notes", "-", "then", "--", "review", "-draft", "-@12", "+now"})
 	if err != nil {
@@ -130,6 +140,13 @@ func TestFormatColorColorsIDsAndTags(t *testing.T) {
 	item := Task{ID: 12, Description: "Ship", Tags: []string{"done"}, References: []int64{9}}
 	if got, want := FormatColor(item), "\x1b[1;33m12\x1b[0m Ship \x1b[1;34m+done\x1b[0m @9"; got != want {
 		t.Fatalf("FormatColor() = %q, want %q", got, want)
+	}
+}
+
+func TestExpressionOmitsTaskID(t *testing.T) {
+	item := Task{ID: 12, Description: "Ship it", Tags: []string{"done"}, References: []int64{9}}
+	if got, want := Expression(item), "Ship it +done @9"; got != want {
+		t.Fatalf("Expression() = %q, want %q", got, want)
 	}
 }
 

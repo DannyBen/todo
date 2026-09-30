@@ -38,11 +38,11 @@ func Open(path string) (*Store, error) {
 			tag TEXT NOT NULL,
 			PRIMARY KEY (task_id, tag)
 		)`,
-		`CREATE TABLE IF NOT EXISTS task_references (
-			task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			reference_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			PRIMARY KEY (task_id, reference_id),
-			CHECK (task_id <> reference_id)
+		`CREATE TABLE IF NOT EXISTS task_connections (
+			task_id_a INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			task_id_b INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			PRIMARY KEY (task_id_a, task_id_b),
+			CHECK (task_id_a < task_id_b)
 		)`,
 	} {
 		if _, err := db.Exec(statement); err != nil {
@@ -50,7 +50,44 @@ func Open(path string) (*Store, error) {
 			return nil, fmt.Errorf("initialize todo database: %w", err)
 		}
 	}
+	if err := migrateReferences(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &Store{db: db}, nil
+}
+
+func migrateReferences(db *sql.DB) error {
+	var exists int
+	err := db.QueryRow(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'task_references'`).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect legacy references: %w", err)
+	}
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("begin reference migration: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+		INSERT OR IGNORE INTO task_connections (task_id_a, task_id_b)
+		SELECT
+			CASE WHEN task_id < reference_id THEN task_id ELSE reference_id END,
+			CASE WHEN task_id < reference_id THEN reference_id ELSE task_id END
+		FROM task_references
+		WHERE task_id <> reference_id
+	`); err != nil {
+		return fmt.Errorf("migrate references: %w", err)
+	}
+	if _, err := tx.Exec("DROP TABLE task_references"); err != nil {
+		return fmt.Errorf("remove legacy references: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reference migration: %w", err)
+	}
+	return nil
 }
 
 func (store *Store) Close() error {
@@ -215,7 +252,12 @@ func loadDetails(source queryer, item *task.Task) error {
 		return fmt.Errorf("read tags for task %d: %w", item.ID, err)
 	}
 
-	referenceRows, err := source.Query("SELECT reference_id FROM task_references WHERE task_id = ? ORDER BY reference_id", item.ID)
+	referenceRows, err := source.Query(`
+		SELECT CASE WHEN task_id_a = ? THEN task_id_b ELSE task_id_a END
+		FROM task_connections
+		WHERE task_id_a = ? OR task_id_b = ?
+		ORDER BY 1
+	`, item.ID, item.ID, item.ID)
 	if err != nil {
 		return fmt.Errorf("read references for task %d: %w", item.ID, err)
 	}
@@ -269,7 +311,8 @@ func addReferences(tx *sql.Tx, id int64, references []int64) error {
 		if err := requireTask(tx, reference); err != nil {
 			return fmt.Errorf("add reference @%d to task %d: %w", reference, id, err)
 		}
-		if _, err := tx.Exec("INSERT OR IGNORE INTO task_references (task_id, reference_id) VALUES (?, ?)", id, reference); err != nil {
+		first, second := connectionIDs(id, reference)
+		if _, err := tx.Exec("INSERT OR IGNORE INTO task_connections (task_id_a, task_id_b) VALUES (?, ?)", first, second); err != nil {
 			return fmt.Errorf("add reference @%d to task %d: %w", reference, id, err)
 		}
 	}
@@ -278,9 +321,17 @@ func addReferences(tx *sql.Tx, id int64, references []int64) error {
 
 func removeReferences(tx *sql.Tx, id int64, references []int64) error {
 	for _, reference := range references {
-		if _, err := tx.Exec("DELETE FROM task_references WHERE task_id = ? AND reference_id = ?", id, reference); err != nil {
+		first, second := connectionIDs(id, reference)
+		if _, err := tx.Exec("DELETE FROM task_connections WHERE task_id_a = ? AND task_id_b = ?", first, second); err != nil {
 			return fmt.Errorf("remove reference @%d from task %d: %w", reference, id, err)
 		}
 	}
 	return nil
+}
+
+func connectionIDs(first, second int64) (int64, int64) {
+	if first < second {
+		return first, second
+	}
+	return second, first
 }

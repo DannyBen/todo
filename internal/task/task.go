@@ -34,8 +34,12 @@ type Filters struct {
 func ParseChange(args []string) (Change, error) {
 	var change Change
 	var words []string
-
+	var tokens []string
 	for _, arg := range args {
+		tokens = append(tokens, strings.Fields(arg)...)
+	}
+
+	for _, arg := range tokens {
 		removedReference, removesReference := parseRemovedReference(arg)
 		removedTag, removesTag := parseRemovedTag(arg)
 		switch {
@@ -73,7 +77,11 @@ func ParseChange(args []string) (Change, error) {
 
 func ParseFilters(args []string) (Filters, error) {
 	var filters Filters
+	var tokens []string
 	for _, arg := range args {
+		tokens = append(tokens, strings.Fields(arg)...)
+	}
+	for _, arg := range tokens {
 		removedReference, removesReference := parseRemovedReference(arg)
 		removedTag, removesTag := parseRemovedTag(arg)
 		switch {
@@ -144,6 +152,12 @@ func (filters Filters) Match(item Task) bool {
 
 func Format(item Task) string {
 	return format(item, 0, 0, false)
+}
+
+func Expression(item Task) string {
+	formatted := Format(item)
+	_, expression, _ := strings.Cut(formatted, " ")
+	return expression
 }
 
 func FormatColor(item Task) string {

@@ -4,7 +4,7 @@ Todo - A lightweight project todo list
 
   todo add TEXT...
   todo list FILTER...
-  todo edit ID TEXT...
+  todo edit ID [TEXT...]
   todo del ID
   todo help
 
@@ -19,8 +19,8 @@ Todo - A lightweight project todo list
   WORD...  description text
   +TAG     add a tag
   -TAG     remove a tag
-  @ID      add a task reference
-  -@ID     remove a task reference
+  @ID      add a task connection
+  -@ID     remove a task connection
 
 The plus sign always means add and the minus sign always means remove when the
 token matches the syntax above. These operations have the same meaning in every
@@ -28,8 +28,13 @@ command; removals during `todo add` are accepted and have no effect. A standalon
 `-` or `--` is ordinary description text.
 
 During `todo edit`, ordinary text replaces the description. When an edit contains
-only tag and reference operations, the existing description remains unchanged.
+only tag and connection operations, the existing description remains unchanged.
+With no text, `todo edit ID` opens the current description, tags, and connections
+in $EDITOR (default: vi). Newlines and other whitespace are normalized to spaces.
 `todo del` prints the removed task so it can be recovered if needed.
+
+Connections are symmetric: adding `@2` to task 1 also shows `@1` on task 2.
+Removing the connection from either task removes it from both.
 
 **List filters:**
 
@@ -37,8 +42,8 @@ only tag and reference operations, the existing description remains unchanged.
   ID       task ID equals ID
   +TAG     task has TAG
   -TAG     task does not have TAG
-  @ID      task references ID
-  -@ID     task does not reference ID
+  @ID      task is connected to ID
+  -@ID     task is not connected to ID
 
 Filters are combined with AND. The `=` prefix is reserved for future use.
 

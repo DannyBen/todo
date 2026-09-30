@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ const usage = `Todo - A lightweight project todo list
 Usage:
   todo add TEXT...
   todo list FILTER...
-  todo edit ID TEXT...
+  todo edit ID [TEXT...]
   todo del ID
   todo help
 `
@@ -35,6 +36,10 @@ type usageError struct {
 func (err usageError) Error() string { return err.message }
 
 func Execute(args []string, version string, stdout io.Writer) error {
+	return ExecuteWithIO(args, version, os.Stdin, stdout, os.Stderr)
+}
+
+func ExecuteWithIO(args []string, version string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		return usageError{message: strings.TrimSpace(usage)}
 	}
@@ -79,7 +84,7 @@ func Execute(args []string, version string, stdout io.Writer) error {
 	case "list":
 		return runList(database, args[1:], stdout)
 	case "edit":
-		return runEdit(database, args[1:], stdout)
+		return runEdit(database, args[1:], stdin, stdout, stderr)
 	case "del":
 		return runDelete(database, args[1:], stdout)
 	}
@@ -148,15 +153,22 @@ func runList(database *store.Store, args []string, stdout io.Writer) error {
 	return printTasks(stdout, matches)
 }
 
-func runEdit(database *store.Store, args []string, stdout io.Writer) error {
-	if len(args) < 2 {
-		return usageError{message: "usage: todo edit ID TEXT..."}
+func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	if len(args) < 1 {
+		return usageError{message: "usage: todo edit ID [TEXT...]"}
 	}
 	id, err := parseID(args[0])
 	if err != nil {
 		return err
 	}
-	change, err := task.ParseChange(args[1:])
+	if len(args) == 1 {
+		return runEditor(database, id, stdin, stdout, stderr)
+	}
+	return applyEdit(database, id, args[1:], stdout)
+}
+
+func applyEdit(database *store.Store, id int64, args []string, stdout io.Writer) error {
+	change, err := task.ParseChange(args)
 	if err != nil {
 		return err
 	}
@@ -165,6 +177,43 @@ func runEdit(database *store.Store, args []string, stdout io.Writer) error {
 		return err
 	}
 	return printTasks(stdout, []task.Task{updated})
+}
+
+func runEditor(database *store.Store, id int64, stdin io.Reader, stdout, stderr io.Writer) error {
+	item, err := database.Get(id)
+	if err != nil {
+		return err
+	}
+	file, err := os.CreateTemp("", "todo-edit-*.txt")
+	if err != nil {
+		return fmt.Errorf("create editor file: %w", err)
+	}
+	path := file.Name()
+	defer os.Remove(path)
+	if _, err := fmt.Fprintln(file, task.Expression(item)); err != nil {
+		file.Close()
+		return fmt.Errorf("write editor file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close editor file: %w", err)
+	}
+
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	command := exec.Command("sh", "-c", editor+" \"$1\"", "todo-edit", path)
+	command.Stdin = stdin
+	command.Stdout = stdout
+	command.Stderr = stderr
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("run editor: %w", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read editor file: %w", err)
+	}
+	return applyEdit(database, id, strings.Fields(string(content)), stdout)
 }
 
 func runDelete(database *store.Store, args []string, stdout io.Writer) error {

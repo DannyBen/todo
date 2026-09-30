@@ -16,7 +16,7 @@ $ todo list +done -blocked
 ```text
 todo add TEXT...
 todo list FILTER...
-todo edit ID TEXT...
+todo edit ID [TEXT...]
 todo del ID
 ```
 
@@ -25,14 +25,19 @@ and `todo del` respectively.
 
 Filters are combined with AND. Plain words are case-insensitive description
 substrings. A number selects a task by ID, `+tag` requires a tag, `-tag`
-excludes it, `@12` requires a reference, and `-@12` excludes it. The `=` prefix
+excludes it, `@12` requires a connection, and `-@12` excludes it. The `=` prefix
 is reserved for future use.
 
 Editing with ordinary text replaces the description. `+tag` and `-tag` add and
 remove tags without changing the description; `@12` and `-@12` do the same for
-references. These operations mean the same thing for every command, so a
+connections. Connections are symmetric and can be removed from either task.
+These operations mean the same thing for every command, so a
 removal during `todo add` is accepted and has no effect. A standalone `-` or
 `--` is not valid removal syntax and remains ordinary description text.
+
+Running `todo edit ID` without text opens the task expression in `$EDITOR`, or
+`vi` when it is unset. Saving applies exactly the same syntax as a direct edit.
+Newlines and other whitespace are normalized to spaces so tasks remain one line.
 
 Deleting a task prints the removed task so it can be recreated if needed.
 

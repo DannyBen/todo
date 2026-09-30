@@ -101,7 +101,6 @@ func TestUsageErrors(t *testing.T) {
 		{name: "no command", want: "Todo - A lightweight project todo list"},
 		{name: "unknown command", args: []string{"nope"}, want: `unknown command "nope"`},
 		{name: "add without text", args: []string{"add"}, want: "usage: todo add TEXT..."},
-		{name: "edit without text", args: []string{"edit", "1"}, want: "usage: todo edit ID TEXT..."},
 		{name: "delete without ID", args: []string{"del"}, want: "usage: todo del ID"},
 		{name: "invalid edit ID", args: []string{"edit", "bad", "+done"}, want: `invalid task ID "bad"`},
 		{name: "invalid delete ID", args: []string{"del", "0"}, want: `invalid task ID "0"`},
@@ -115,6 +114,42 @@ func TestUsageErrors(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestEditInEditorUsesTheSameExpressionSyntax(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TODO_DB_FILE", filepath.Join(dir, "tasks.sqlite"))
+	editor := filepath.Join(dir, "editor")
+	script := "#!/bin/sh\ncp \"$1\" \"$TODO_EDITOR_LOG\"\nprintf '%s\\n' \"$TODO_EDITOR_CONTENT\" > \"$1\"\n"
+	if err := os.WriteFile(editor, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, "editor-input")
+	t.Setenv("EDITOR", editor)
+	t.Setenv("TODO_EDITOR_LOG", logPath)
+	t.Setenv("TODO_EDITOR_CONTENT", "Corrected\ndescription +done -ready")
+
+	var stdout, stderr bytes.Buffer
+	if err := Execute([]string{"add", "Typo", "task", "+ready"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if err := ExecuteWithIO([]string{"edit", "1"}, "test", strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if got, want := stdout.String(), "1 Corrected description +done\n"; got != want {
+		t.Fatalf("editor output = %q, want %q", got, want)
+	}
+	input, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(input), "Typo task +ready\n"; got != want {
+		t.Fatalf("editor input = %q, want %q", got, want)
 	}
 }
 
