@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+build_root=/tmp/todo-build
+build_src=$build_root/src
+build_bin=$build_root/todo
+install_path=/usr/local/bin/todo
+
+rm -rf "$build_src"
+mkdir -p "$build_src"
+cp -a "$root/." "$build_src/"
+
+(
+  cd "$build_src"
+  go build -p=1 -ldflags "-X main.Version=$version" -o "$build_bin" .
+)
+
+if [ -w "$(dirname "$install_path")" ]; then
+  if [ -L "$install_path" ]; then
+    rm "$install_path"
+  fi
+  install -m 0755 "$build_bin" "$install_path"
+else
+  if [ -L "$install_path" ]; then
+    sudo rm "$install_path"
+  fi
+  sudo install -m 0755 "$build_bin" "$install_path"
+fi
+printf 'installed %s\n' "$install_path"
