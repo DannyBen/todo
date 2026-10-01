@@ -89,3 +89,4 @@ Removing the connection from either task removes it from both.
 
   Tasks use the stable format `ID DESCRIPTION +TAG +REFERENCE`. Terminal output
   adds color and wrapping; redirected output remains plain, one task per line.
+  Set NO_COLOR to a non-empty value to disable terminal colors.

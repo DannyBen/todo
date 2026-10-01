@@ -32,6 +32,7 @@ func TestHelp(t *testing.T) {
 				"todo edit 1 -now +done",
 				"todo del +done",
 				"TODO_FILE",
+				"NO_COLOR",
 			} {
 				if !strings.Contains(stdout.String(), expected) {
 					t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())
