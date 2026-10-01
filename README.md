@@ -53,6 +53,40 @@ Prebuilt archives for macOS and Linux are available on the repository's
   as `+high`, `+low`, `+p1`, `+now`, and `+done`, then teach your agent the same
   vocabulary.
 
+## Usage
+
+```
+todo add TEXT...
+todo list FILTER...
+todo edit ID [TEXT...]
+todo del FILTER...
+todo help
+```
+
+### Adding tasks
+
+Add tasks with plain text and optional tags
+
+<img src="support/vhs/add.gif" width="500">
+
+### Editing tasks
+
+Edit task text, or tags, or both
+
+<img src="support/vhs/edit.gif" width="500">
+
+### Listing and filtering tasks
+
+Filter by text, ID, or tag, with AND, OR, and exclusions
+
+<img src="support/vhs/list.gif" width="500">
+
+### Deleting tasks
+
+Delete by ID or tag, with OR for multiple filters
+
+<img src="support/vhs/del.gif" width="500">
+
 ## Contributing / Support
 
 If you experience any issue, have a question or a suggestion, or if you wish to

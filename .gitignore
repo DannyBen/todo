@@ -1,4 +1,4 @@
 /tmp
 /dist
-/.todo.sqlite
-/.todo.sqlite-*
+*.sqlite
+*.sqlite-*
