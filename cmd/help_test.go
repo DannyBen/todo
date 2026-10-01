@@ -30,6 +30,8 @@ func TestHelp(t *testing.T) {
 				"Spaces between filters mean AND",
 				"Examples:",
 				"todo edit 1 -now +done",
+				"List task 2 OR tasks connected to task 2:",
+				"todo list 2/+2",
 				"todo del +done",
 				"TODO_FILE",
 				"NO_COLOR",

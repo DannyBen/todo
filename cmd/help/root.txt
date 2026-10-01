@@ -73,6 +73,9 @@ Removing the connection from either task removes it from both.
     todo edit 1 +2
     todo list 1/2
 
+  List task 2 OR tasks connected to task 2:
+    todo list 2/+2
+
   Apply the same edit to several tasks atomically:
     todo edit 2/3 +ready -defer
 
