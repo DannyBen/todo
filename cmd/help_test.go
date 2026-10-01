@@ -168,6 +168,10 @@ func TestDatabaseFileResolution(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	nested := filepath.Join(root, "one", "two")
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
