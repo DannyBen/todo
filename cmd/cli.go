@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/dannyben/todo/internal/store"
 	"github.com/dannyben/todo/internal/task"
+	"github.com/ergochat/readline"
 	"golang.org/x/term"
 )
 
@@ -35,11 +35,19 @@ type usageError struct {
 
 func (err usageError) Error() string { return err.message }
 
+type editPrompt func(id int64, current string, stdin io.Reader, stderr io.Writer) (string, error)
+
+var errEditCanceled = errors.New("edit canceled")
+
 func Execute(args []string, version string, stdout io.Writer) error {
 	return ExecuteWithIO(args, version, os.Stdin, stdout, os.Stderr)
 }
 
 func ExecuteWithIO(args []string, version string, stdin io.Reader, stdout, stderr io.Writer) error {
+	return executeWithPrompt(args, version, stdin, stdout, stderr, promptEdit)
+}
+
+func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
 	if len(args) == 0 {
 		return usageError{message: strings.TrimSpace(usage)}
 	}
@@ -84,7 +92,7 @@ func ExecuteWithIO(args []string, version string, stdin io.Reader, stdout, stder
 	case "list":
 		return runList(database, args[1:], stdout)
 	case "edit":
-		return runEdit(database, args[1:], stdin, stdout, stderr)
+		return runEdit(database, args[1:], stdin, stdout, stderr, prompt)
 	case "del":
 		return runDelete(database, args[1:], stdout)
 	}
@@ -161,7 +169,7 @@ func matchingTasks(database *store.Store, args []string) ([]task.Task, error) {
 	return matches, nil
 }
 
-func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
 	if len(args) < 1 {
 		return usageError{message: "usage: todo edit ID [TEXT...]"}
 	}
@@ -173,7 +181,7 @@ func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stde
 		if len(ids) != 1 {
 			return fmt.Errorf("multiple task IDs require an edit expression")
 		}
-		return runEditor(database, ids[0], stdin, stdout, stderr)
+		return runInteractiveEdit(database, ids[0], stdin, stdout, stderr, prompt)
 	}
 	return applyEdits(database, ids, args[1:], stdout)
 }
@@ -201,41 +209,71 @@ func applyEdits(database *store.Store, ids []int64, args []string, stdout io.Wri
 	return printTasks(stdout, updated)
 }
 
-func runEditor(database *store.Store, id int64, stdin io.Reader, stdout, stderr io.Writer) error {
+func runInteractiveEdit(database *store.Store, id int64, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
 	item, err := database.Get(id)
 	if err != nil {
 		return err
 	}
-	file, err := os.CreateTemp("", "todo-edit-*.txt")
+	edited, err := prompt(id, task.Expression(item), stdin, stderr)
+	if errors.Is(err, errEditCanceled) {
+		return nil
+	}
 	if err != nil {
-		return fmt.Errorf("create editor file: %w", err)
+		return err
 	}
-	path := file.Name()
-	defer os.Remove(path)
-	if _, err := fmt.Fprintln(file, task.Expression(item)); err != nil {
-		file.Close()
-		return fmt.Errorf("write editor file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("close editor file: %w", err)
+	return applyEdit(database, id, strings.Fields(edited), stdout)
+}
+
+func promptEdit(id int64, current string, stdin io.Reader, stderr io.Writer) (edited string, err error) {
+	input, inputIsTerminal := stdin.(*os.File)
+	_, outputIsTerminal := terminalWriter(stderr)
+	if !inputIsTerminal || !term.IsTerminal(int(input.Fd())) || !outputIsTerminal {
+		return "", fmt.Errorf("interactive edit requires a terminal; provide edit text after the task ID")
 	}
 
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi"
+	hint, prompt := editPromptText(id, os.Getenv("NO_COLOR") == "")
+	if _, err := fmt.Fprintf(stderr, "%s\n\n", hint); err != nil {
+		return "", err
 	}
-	command := exec.Command("sh", "-c", editor+" \"$1\"", "todo-edit", path)
-	command.Stdin = stdin
-	command.Stdout = stdout
-	command.Stderr = stderr
-	if err := command.Run(); err != nil {
-		return fmt.Errorf("run editor: %w", err)
-	}
-	content, err := os.ReadFile(path)
+
+	line, err := readline.NewEx(&readline.Config{
+		Prompt:                 prompt,
+		Stdin:                  stdin,
+		Stdout:                 stderr,
+		Stderr:                 stderr,
+		HistoryLimit:           -1,
+		DisableAutoSaveHistory: true,
+		InterruptPrompt:        "\n",
+		EOFPrompt:              "\n",
+		FuncIsTerminal:         func() bool { return true },
+	})
 	if err != nil {
-		return fmt.Errorf("read editor file: %w", err)
+		return "", fmt.Errorf("start inline editor: %w", err)
 	}
-	return applyEdit(database, id, strings.Fields(string(content)), stdout)
+	defer func() {
+		if closeErr := line.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close inline editor: %w", closeErr)
+		}
+	}()
+
+	edited, err = line.ReadLineWithDefault(current)
+	if errors.Is(err, readline.ErrInterrupt) || errors.Is(err, io.EOF) {
+		return "", errEditCanceled
+	}
+	if err != nil {
+		return "", fmt.Errorf("read inline edit: %w", err)
+	}
+	return edited, nil
+}
+
+func editPromptText(id int64, color bool) (hint, prompt string) {
+	hint = "Enter saves · Ctrl+C cancels"
+	prompt = strconv.FormatInt(id, 10) + " "
+	if color {
+		hint = "\x1b[1;36mEnter\x1b[0m saves · \x1b[1;36mCtrl+C\x1b[0m cancels"
+		prompt = "\x1b[1;33m" + strconv.FormatInt(id, 10) + "\x1b[0m "
+	}
+	return hint, prompt
 }
 
 func runDelete(database *store.Store, args []string, stdout io.Writer) error {

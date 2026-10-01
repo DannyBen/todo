@@ -48,7 +48,8 @@ during `todo add` are accepted and have no effect.
 During `todo edit`, ordinary text replaces the description. When an edit contains
 only tag and connection operations, the existing description remains unchanged.
 With no text, `todo edit ID` opens the current description, tags, and connections
-in $EDITOR (default: vi). Newlines and other whitespace are normalized to spaces.
+in an inline editor. Enter saves the edit and Ctrl+C cancels it. Interactive edits
+require a terminal; provide text on the command line in scripts.
 Multiple IDs separated by `/` receive the same non-interactive edit atomically.
 `todo del` accepts the same filters as `todo list`, deletes every match
 atomically, and prints each removed task so it can be recovered. Use `todo list`

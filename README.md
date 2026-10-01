@@ -71,7 +71,7 @@ Add tasks with plain text and optional tags
 
 ### Editing tasks
 
-Edit task text, or tags, or both
+Edit task text, tags, or both. Run `todo edit ID` to edit the complete task inline.
 
 <img src="support/vhs/edit.gif" width="500">
 

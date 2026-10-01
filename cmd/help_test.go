@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,39 +124,82 @@ func TestUsageErrors(t *testing.T) {
 	}
 }
 
-func TestEditInEditorUsesTheSameExpressionSyntax(t *testing.T) {
+func TestInteractiveEditUsesTheSameExpressionSyntax(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TODO_FILE", filepath.Join(dir, "tasks.sqlite"))
-	editor := filepath.Join(dir, "editor")
-	script := "#!/bin/sh\ncp \"$1\" \"$TODO_EDITOR_LOG\"\nprintf '%s\\n' \"$TODO_EDITOR_CONTENT\" > \"$1\"\n"
-	if err := os.WriteFile(editor, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	logPath := filepath.Join(dir, "editor-input")
-	t.Setenv("EDITOR", editor)
-	t.Setenv("TODO_EDITOR_LOG", logPath)
-	t.Setenv("TODO_EDITOR_CONTENT", "Corrected\ndescription +done -ready")
 
 	var stdout, stderr bytes.Buffer
 	if err := Execute([]string{"add", "Typo", "task", "+ready"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	if err := ExecuteWithIO([]string{"edit", "1"}, "test", strings.NewReader(""), &stdout, &stderr); err != nil {
+	prompt := func(id int64, current string, stdin io.Reader, stderr io.Writer) (string, error) {
+		if id != 1 {
+			t.Fatalf("prompt ID = %d, want 1", id)
+		}
+		if current != "Typo task +ready" {
+			t.Fatalf("prompt text = %q, want current task expression", current)
+		}
+		return "Corrected description +done -ready", nil
+	}
+	if err := executeWithPrompt([]string{"edit", "1"}, "test", strings.NewReader(""), &stdout, &stderr, prompt); err != nil {
 		t.Fatal(err)
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if got, want := stdout.String(), "1 Corrected description +done\n"; got != want {
-		t.Fatalf("editor output = %q, want %q", got, want)
+		t.Fatalf("interactive edit output = %q, want %q", got, want)
 	}
-	input, err := os.ReadFile(logPath)
-	if err != nil {
+}
+
+func TestInteractiveEditCanBeCanceled(t *testing.T) {
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+
+	var stdout bytes.Buffer
+	if err := Execute([]string{"add", "Keep", "this"}, "test", &stdout); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(input), "Typo task +ready\n"; got != want {
-		t.Fatalf("editor input = %q, want %q", got, want)
+	stdout.Reset()
+	prompt := func(int64, string, io.Reader, io.Writer) (string, error) {
+		return "", errEditCanceled
+	}
+	if err := executeWithPrompt([]string{"edit", "1"}, "test", strings.NewReader(""), &stdout, &bytes.Buffer{}, prompt); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("canceled edit output = %q, want none", stdout.String())
+	}
+	if err := Execute([]string{"list", "1"}, "test", &stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "1 Keep this\n"; got != want {
+		t.Fatalf("task after canceled edit = %q, want %q", got, want)
+	}
+}
+
+func TestInteractiveEditRequiresTerminal(t *testing.T) {
+	_, err := promptEdit(1, "Task", strings.NewReader(""), &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "interactive edit requires a terminal") {
+		t.Fatalf("error = %v, want terminal requirement", err)
+	}
+}
+
+func TestEditPromptFormatting(t *testing.T) {
+	hint, prompt := editPromptText(41, true)
+	if got, want := hint, "\x1b[1;36mEnter\x1b[0m saves · \x1b[1;36mCtrl+C\x1b[0m cancels"; got != want {
+		t.Fatalf("colored hint = %q, want %q", got, want)
+	}
+	if got, want := prompt, "\x1b[1;33m41\x1b[0m "; got != want {
+		t.Fatalf("colored prompt = %q, want %q", got, want)
+	}
+
+	hint, prompt = editPromptText(41, false)
+	if got, want := hint, "Enter saves · Ctrl+C cancels"; got != want {
+		t.Fatalf("plain hint = %q, want %q", got, want)
+	}
+	if got, want := prompt, "41 "; got != want {
+		t.Fatalf("plain prompt = %q, want %q", got, want)
 	}
 }
 
