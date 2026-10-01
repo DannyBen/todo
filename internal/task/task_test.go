@@ -78,6 +78,22 @@ func TestParseChangeDistinguishesTextFromRemovalSyntax(t *testing.T) {
 	}
 }
 
+func TestParseChangeSupportsLiteralOperatorPrefixes(t *testing.T) {
+	change, err := ParseChange([]string{"Test", ":-h", "and", ":+draft", ":--help", "::-literal", "+docs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if change.Description == nil {
+		t.Fatal("description is nil")
+	}
+	if got, want := *change.Description, "Test -h and +draft --help :-literal"; got != want {
+		t.Fatalf("description = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(change.AddTags, ","), "docs"; got != want {
+		t.Fatalf("added tags = %q, want %q", got, want)
+	}
+}
+
 func TestFiltersUseANDSemantics(t *testing.T) {
 	filters, err := ParseFilters([]string{"deploy", "+ready", "-blocked", "+7", "-9", "12"})
 	if err != nil {
@@ -156,6 +172,19 @@ func TestFiltersUseORAcrossPredicateTypes(t *testing.T) {
 	}
 	if filters.Match(Task{ID: 3, Tags: []string{"defer"}}) {
 		t.Fatal("separate exclusion filter did not remain required")
+	}
+}
+
+func TestFiltersSupportLiteralOperatorPrefixes(t *testing.T) {
+	filters, err := ParseFilters([]string{":-h", ":+draft", "::-literal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filters.Match(Task{Description: "Test -h and +draft with :-literal text"}) {
+		t.Fatal("expected literal operator filters to match description text")
+	}
+	if filters.Match(Task{Description: "Test flags", Tags: []string{"h", "draft"}}) {
+		t.Fatal("literal operator filters unexpectedly matched tags")
 	}
 }
 
@@ -261,6 +290,27 @@ func TestExpressionOmitsTaskID(t *testing.T) {
 	item := Task{ID: 12, Description: "Ship it", Tags: []string{"done"}, References: []int64{9}}
 	if got, want := Expression(item), "Ship it +done +9"; got != want {
 		t.Fatalf("Expression() = %q, want %q", got, want)
+	}
+}
+
+func TestExpressionEscapesDescriptionOperators(t *testing.T) {
+	item := Task{
+		ID:          12,
+		Description: "Test -h +draft :-literal --help",
+		Tags:        []string{"done"},
+		References:  []int64{9},
+	}
+	expression := Expression(item)
+	if got, want := expression, "Test :-h :+draft ::-literal --help +done +9"; got != want {
+		t.Fatalf("Expression() = %q, want %q", got, want)
+	}
+
+	change, err := ParseChange(strings.Fields(expression))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if change.Description == nil || *change.Description != item.Description {
+		t.Fatalf("round-trip description = %v, want %q", change.Description, item.Description)
 	}
 }
 

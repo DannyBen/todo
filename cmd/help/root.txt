@@ -26,6 +26,8 @@ join different filter types.
 
 **Operators:**
 
+Everything is ordinary text except the operator forms below.
+
   +  Add or Has
      todo edit 12 +defer
      todo list +high
@@ -39,11 +41,16 @@ join different filter types.
      todo rm 3/4/5
      todo rm 3/4/5/+low
 
+  :  Treat a leading + or - as text
+     todo add Test the :-h flag and :+draft syntax
+     todo list :-h
+
 After `+` or `-`, an all-digit value is a connection; any other valid value is a
 tag. A prefix is special only when the whole token is valid. For example,
 `+tag` adds a tag, while the separate words `+ tag` are ordinary text. Invalid
-operations and standalone `+`, `-`, or `--` are also ordinary text. Removals
-during `todo add` are accepted and have no effect.
+operations and standalone `+`, `-`, or `--` are also ordinary text. The `:`
+literal marker is removed before storing or matching. Removals during `todo add`
+are accepted and have no effect.
 
 During `todo edit`, ordinary text replaces the description. When an edit contains
 only tag and connection operations, the existing description remains unchanged.

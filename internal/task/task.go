@@ -68,6 +68,10 @@ func ParseChange(args []string) (Change, error) {
 	}
 
 	for _, arg := range tokens {
+		if literal, ok := unescapeLiteralToken(arg); ok {
+			words = append(words, literal)
+			continue
+		}
 		parsed := classifyToken(arg)
 		switch parsed.kind {
 		case removeReferenceToken:
@@ -106,6 +110,10 @@ func ParseFilters(args []string) (Filters, error) {
 		for _, part := range parts {
 			if part == "" {
 				return Filters{}, fmt.Errorf("invalid OR filter %q", token)
+			}
+			if literal, ok := unescapeLiteralToken(part); ok {
+				group = append(group, filterPredicate{kind: termFilter, value: strings.ToLower(literal)})
+				continue
 			}
 			predicate, err := parseFilterPredicate(part)
 			if err != nil {
@@ -198,9 +206,24 @@ func Format(item Task) string {
 }
 
 func Expression(item Task) string {
-	formatted := Format(item)
-	_, expression, _ := strings.Cut(formatted, " ")
-	return expression
+	parts := strings.Fields(item.Description)
+	for index, part := range parts {
+		_, alreadyEscaped := unescapeLiteralToken(part)
+		if alreadyEscaped || classifyToken(part).kind != textToken {
+			parts[index] = ":" + part
+		}
+	}
+	tags := append([]string(nil), item.Tags...)
+	sort.Strings(tags)
+	for _, tag := range tags {
+		parts = append(parts, "+"+tag)
+	}
+	references := append([]int64(nil), item.References...)
+	sort.Slice(references, func(i, j int) bool { return references[i] < references[j] })
+	for _, id := range references {
+		parts = append(parts, "+"+strconv.FormatInt(id, 10))
+	}
+	return strings.Join(parts, " ")
 }
 
 func FormatColor(item Task) string {
@@ -304,6 +327,17 @@ func classifyToken(value string) parsedToken {
 		return parsedToken{kind: removeTagToken, tag: operand}
 	}
 	return parsedToken{kind: textToken}
+}
+
+func unescapeLiteralToken(value string) (string, bool) {
+	index := 0
+	for index < len(value) && value[index] == ':' {
+		index++
+	}
+	if index == 0 || index == len(value) || (value[index] != '+' && value[index] != '-') {
+		return "", false
+	}
+	return value[1:], true
 }
 
 func validTag(value string) bool {
