@@ -82,7 +82,7 @@ Removing the connection from either task removes it from both.
 **Storage:**
 
   The default database is `.todo.sqlite` in the nearest Git root, or the current
-  directory outside Git. Set TODO_DB_FILE to use an exact database path.
+  directory outside Git. Set TODO_FILE to use an exact database path.
 
 **Output:**
 

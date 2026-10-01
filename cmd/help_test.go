@@ -30,7 +30,7 @@ func TestHelp(t *testing.T) {
 				"Examples:",
 				"todo edit 1 -now +done",
 				"todo del +done",
-				"TODO_DB_FILE",
+				"TODO_FILE",
 			} {
 				if !strings.Contains(stdout.String(), expected) {
 					t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())
@@ -98,7 +98,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestUsageErrors(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	tests := []struct {
 		name string
 		args []string
@@ -125,7 +125,7 @@ func TestUsageErrors(t *testing.T) {
 
 func TestEditInEditorUsesTheSameExpressionSyntax(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("TODO_DB_FILE", filepath.Join(dir, "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(dir, "tasks.sqlite"))
 	editor := filepath.Join(dir, "editor")
 	script := "#!/bin/sh\ncp \"$1\" \"$TODO_EDITOR_LOG\"\nprintf '%s\\n' \"$TODO_EDITOR_CONTENT\" > \"$1\"\n"
 	if err := os.WriteFile(editor, []byte(script), 0o755); err != nil {
@@ -161,12 +161,12 @@ func TestEditInEditorUsesTheSameExpressionSyntax(t *testing.T) {
 
 func TestDatabaseFileResolution(t *testing.T) {
 	configured := filepath.Join(t.TempDir(), "configured.sqlite")
-	t.Setenv("TODO_DB_FILE", configured)
+	t.Setenv("TODO_FILE", configured)
 	if got, err := databaseFile(); err != nil || got != configured {
 		t.Fatalf("databaseFile() = %q, %v; want %q", got, err, configured)
 	}
 
-	t.Setenv("TODO_DB_FILE", "")
+	t.Setenv("TODO_FILE", "")
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
 		t.Fatal(err)
@@ -198,7 +198,7 @@ func TestDatabaseFileResolution(t *testing.T) {
 }
 
 func TestCLIWorkflow(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 
 	var stdout bytes.Buffer
 	if err := Execute([]string{"new", "Prepare", "deployment", "+now"}, "test", &stdout); err != nil {
@@ -258,7 +258,7 @@ func TestCLIWorkflow(t *testing.T) {
 }
 
 func TestDeleteByTagFilter(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 
 	for _, args := range [][]string{
 		{"add", "First", "+done"},
@@ -296,7 +296,7 @@ func TestDeleteByTagFilter(t *testing.T) {
 }
 
 func TestDeleteByMixedFilters(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	for _, args := range [][]string{
 		{"add", "First", "+maybe"},
 		{"add", "Second", "+low"},
@@ -334,7 +334,7 @@ func TestDeleteByMixedFilters(t *testing.T) {
 }
 
 func TestSlashSeparatedIDs(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	for _, description := range []string{"First", "Second", "Third"} {
 		if err := Execute([]string{"add", description}, "test", &bytes.Buffer{}); err != nil {
 			t.Fatal(err)
@@ -382,7 +382,7 @@ func TestSlashSeparatedIDs(t *testing.T) {
 }
 
 func TestTagFilterOR(t *testing.T) {
-	t.Setenv("TODO_DB_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	for _, args := range [][]string{
 		{"add", "Low", "+low"},
 		{"add", "Maybe", "+maybe"},

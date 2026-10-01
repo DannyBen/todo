@@ -322,7 +322,7 @@ func terminalWriter(writer io.Writer) (*os.File, bool) {
 }
 
 func databaseFile() (string, error) {
-	if configured := os.Getenv("TODO_DB_FILE"); configured != "" {
+	if configured := os.Getenv("TODO_FILE"); configured != "" {
 		return configured, nil
 	}
 
