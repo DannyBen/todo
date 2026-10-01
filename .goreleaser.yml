@@ -39,7 +39,6 @@ checksum:
   algorithm: sha256
 
 changelog:
-  sort: asc
   filters:
     include:
       - "^- "
