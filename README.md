@@ -18,6 +18,23 @@ $ todo list +done -blocked
 
 Run `todo help` for the complete syntax and copy-ready examples.
 
+## Install
+
+With [eget](https://github.com/zyedidia/eget):
+
+```bash
+eget dannyben/todo
+```
+
+Or install from source:
+
+```bash
+go install github.com/dannyben/todo@latest
+```
+
+Prebuilt archives are also available on the repository's
+[Releases page](https://github.com/DannyBen/todo/releases).
+
 ## Why Todo?
 
 - **Obsessively simple.** Four commands, no flags, ordinary task descriptions,
