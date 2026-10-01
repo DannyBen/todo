@@ -1,5 +1,7 @@
 # Todo
 
+![repocard](https://repocard.dannyben.com/svg/todo.svg)
+
 A lightweight project todo list shared by humans and coding agents.
 
 Todo keeps a compact action queue at the root of each project. Its four commands
@@ -32,7 +34,7 @@ Or install from source:
 go install github.com/dannyben/todo@latest
 ```
 
-Prebuilt archives are also available on the repository's
+Prebuilt archives for macOS and Linux are available on the repository's
 [Releases page](https://github.com/DannyBen/todo/releases).
 
 ## Why Todo?
@@ -50,3 +52,8 @@ Prebuilt archives are also available on the repository's
 - **Your conventions.** Todo defines no priorities or workflow. Choose tags such
   as `+high`, `+low`, `+p1`, `+now`, and `+done`, then teach your agent the same
   vocabulary.
+
+## Contributing / Support
+
+If you experience any issue, have a question or a suggestion, or if you wish to
+contribute, feel free to [open an issue](https://github.com/DannyBen/todo/issues).
