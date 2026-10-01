@@ -27,6 +27,9 @@ func TestHelp(t *testing.T) {
 				"/  OR when selecting tasks",
 				"todo rm 3/4/5/+low",
 				"Spaces between filters mean AND",
+				"Examples:",
+				"todo edit 1 -now +done",
+				"todo del +done",
 				"TODO_DB_FILE",
 			} {
 				if !strings.Contains(stdout.String(), expected) {

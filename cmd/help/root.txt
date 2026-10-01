@@ -57,6 +57,28 @@ with the same filters to preview.
 Connections are symmetric: adding `+2` to task 1 also shows `+1` on task 2.
 Removing the connection from either task removes it from both.
 
+**Examples:**
+
+  Add and prioritize work:
+    todo add Prepare for deployment +production +now
+
+  Find actionable production tasks:
+    todo list +production +now -blocked
+
+  Complete a task without replacing its description:
+    todo edit 1 -now +done
+
+  Connect related tasks, then list either one:
+    todo edit 1 +2
+    todo list 1/2
+
+  Apply the same edit to several tasks atomically:
+    todo edit 2/3 +ready -defer
+
+  Preview completed tasks before deleting them:
+    todo list +done
+    todo del +done
+
 **Storage:**
 
   The default database is `.todo.sqlite` in the nearest Git root, or the current
