@@ -5,13 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/dannyben/todo/internal/task"
 	_ "modernc.org/sqlite"
 )
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
+}
+
+type executor interface {
+	queryer
+	Exec(string, ...any) (sql.Result, error)
 }
 
 type queryer interface {
@@ -20,7 +27,11 @@ type queryer interface {
 }
 
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve database path: %w", err)
+	}
+	db, err := sql.Open("sqlite", databaseURI(path, "_txlock", "immediate"))
 	if err != nil {
 		return nil, fmt.Errorf("open todo database: %w", err)
 	}
@@ -54,7 +65,12 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("resolve database path: %w", err)
+	}
+	return &Store{db: db, path: path}, nil
 }
 
 func migrateReferences(db *sql.DB) error {
@@ -95,7 +111,7 @@ func (store *Store) Close() error {
 }
 
 func (store *Store) Add(description string, tags []string, references []int64) (task.Task, error) {
-	tx, err := store.db.BeginTx(context.Background(), nil)
+	tx, err := store.beginMutation()
 	if err != nil {
 		return task.Task{}, fmt.Errorf("begin add: %w", err)
 	}
@@ -122,7 +138,7 @@ func (store *Store) Add(description string, tags []string, references []int64) (
 }
 
 func (store *Store) Edit(id int64, change task.Change) (task.Task, error) {
-	tx, err := store.db.BeginTx(context.Background(), nil)
+	tx, err := store.beginMutation()
 	if err != nil {
 		return task.Task{}, fmt.Errorf("begin edit: %w", err)
 	}
@@ -144,7 +160,7 @@ func (store *Store) EditMany(ids []int64, change task.Change) ([]task.Task, erro
 	if len(ids) > 1 && change.Description != nil {
 		return nil, fmt.Errorf("bulk edits cannot replace task descriptions; use only tag and connection operations")
 	}
-	tx, err := store.db.BeginTx(context.Background(), nil)
+	tx, err := store.beginMutation()
 	if err != nil {
 		return nil, fmt.Errorf("begin multi-task edit: %w", err)
 	}
@@ -175,7 +191,7 @@ func (store *Store) EditMany(ids []int64, change task.Change) ([]task.Task, erro
 	return updated, nil
 }
 
-func applyChange(tx *sql.Tx, id int64, change task.Change) error {
+func applyChange(tx executor, id int64, change task.Change) error {
 	if change.Description != nil {
 		if *change.Description == "" {
 			return fmt.Errorf("task description cannot be empty")
@@ -200,7 +216,7 @@ func applyChange(tx *sql.Tx, id int64, change task.Change) error {
 }
 
 func (store *Store) Delete(id int64) (task.Task, error) {
-	tx, err := store.db.BeginTx(context.Background(), nil)
+	tx, err := store.beginMutation()
 	if err != nil {
 		return task.Task{}, fmt.Errorf("begin delete: %w", err)
 	}
@@ -228,7 +244,7 @@ func (store *Store) Delete(id int64) (task.Task, error) {
 }
 
 func (store *Store) DeleteMany(ids []int64) ([]task.Task, error) {
-	tx, err := store.db.BeginTx(context.Background(), nil)
+	tx, err := store.beginMutation()
 	if err != nil {
 		return nil, fmt.Errorf("begin multi-task deletion: %w", err)
 	}
@@ -281,7 +297,11 @@ func get(source queryer, id int64) (task.Task, error) {
 }
 
 func (store *Store) List() ([]task.Task, error) {
-	rows, err := store.db.Query("SELECT id, description FROM tasks ORDER BY id")
+	return list(store.db)
+}
+
+func list(source queryer) ([]task.Task, error) {
+	rows, err := source.Query("SELECT id, description FROM tasks ORDER BY id")
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
@@ -301,7 +321,7 @@ func (store *Store) List() ([]task.Task, error) {
 		return nil, fmt.Errorf("read task list: %w", err)
 	}
 	for index := range tasks {
-		if err := loadDetails(store.db, &tasks[index]); err != nil {
+		if err := loadDetails(source, &tasks[index]); err != nil {
 			return nil, err
 		}
 	}
@@ -351,7 +371,7 @@ func loadDetails(source queryer, item *task.Task) error {
 	return nil
 }
 
-func requireTask(tx *sql.Tx, id int64) error {
+func requireTask(tx queryer, id int64) error {
 	var exists int
 	if err := tx.QueryRow("SELECT 1 FROM tasks WHERE id = ?", id).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("task %d not found", id)
@@ -361,7 +381,7 @@ func requireTask(tx *sql.Tx, id int64) error {
 	return nil
 }
 
-func addTags(tx *sql.Tx, id int64, tags []string) error {
+func addTags(tx executor, id int64, tags []string) error {
 	for _, tag := range tags {
 		if _, err := tx.Exec("INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", id, tag); err != nil {
 			return fmt.Errorf("add tag +%s to task %d: %w", tag, id, err)
@@ -370,7 +390,7 @@ func addTags(tx *sql.Tx, id int64, tags []string) error {
 	return nil
 }
 
-func removeTags(tx *sql.Tx, id int64, tags []string) error {
+func removeTags(tx executor, id int64, tags []string) error {
 	for _, tag := range tags {
 		if _, err := tx.Exec("DELETE FROM tags WHERE task_id = ? AND tag = ?", id, tag); err != nil {
 			return fmt.Errorf("remove tag +%s from task %d: %w", tag, id, err)
@@ -379,7 +399,7 @@ func removeTags(tx *sql.Tx, id int64, tags []string) error {
 	return nil
 }
 
-func addReferences(tx *sql.Tx, id int64, references []int64) error {
+func addReferences(tx executor, id int64, references []int64) error {
 	for _, reference := range references {
 		if reference == id {
 			return fmt.Errorf("task %d cannot reference itself", id)
@@ -395,7 +415,7 @@ func addReferences(tx *sql.Tx, id int64, references []int64) error {
 	return nil
 }
 
-func removeReferences(tx *sql.Tx, id int64, references []int64) error {
+func removeReferences(tx executor, id int64, references []int64) error {
 	for _, reference := range references {
 		first, second := connectionIDs(id, reference)
 		if _, err := tx.Exec("DELETE FROM task_connections WHERE task_id_a = ? AND task_id_b = ?", first, second); err != nil {

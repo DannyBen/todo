@@ -42,6 +42,11 @@ func TestHelp(t *testing.T) {
 				"todo list 2/+2",
 				"todo del +done",
 				"TODO_FILE",
+				"Backups:",
+				"export TODO_BACKUP=on",
+				"export TODO_BACKUP=.todo",
+				"export TODO_BACKUP=30@.todo",
+				".backupid",
 				"NO_COLOR",
 			} {
 				if !strings.Contains(stdout.String(), expected) {

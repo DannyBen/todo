@@ -118,6 +118,26 @@ Removing the connection from either task removes it from both.
   The default database is `.todo.sqlite` in the nearest Git root, or the current
   directory outside Git. Set TODO_FILE to use an exact database path.
 
+**Backups:**
+
+  Backups are disabled by default. Enable them in a dedicated `.todo` directory:
+
+    export TODO_BACKUP=on         # keep 10 snapshots in .todo
+    export TODO_BACKUP=.todo      # choose a directory; default count is 10
+    export TODO_BACKUP=30@.todo   # choose both count and directory
+
+  Relative paths resolve beside the database. Successful changes save the previous
+  database as PROJECT-TIMESTAMP.sqlite, retaining the newest snapshots. Errors and
+  edits that change nothing do not add backups; backup creation failures stop the
+  change.
+
+  Todo claims only absent or empty directories, creating `.backupid` with the
+  database's canonical path. Existing directories require a matching `.backupid`.
+  Use one backup directory per database and exclude it from version control.
+
+  To restore, stop any running Todo commands and copy the chosen snapshot over
+  the database. This restores everything, including the task ID counter.
+
 **Output:**
 
   Tasks use the stable format `ID DESCRIPTION +TAG +REFERENCE`. Terminal output

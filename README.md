@@ -46,7 +46,7 @@ Prebuilt archives for macOS and Linux are available on the repository's
   searchable output is token-efficient, and `todo help` contains everything a
   human or agent needs to operate it.
 - **Ephemeral by design.** The task list is an action queue, not a historical
-  record. Deleted tasks are truly removed, not archived.
+  record. Deleted tasks leave the queue; optional backups allow manual recovery.
 - **SQLite by choice.** The non-textual database discourages manual edits and
   accidental commits. Use the CLI as the shared interface.
 - **Your conventions.** Todo defines no priorities or workflow. Choose tags such
