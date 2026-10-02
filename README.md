@@ -39,12 +39,10 @@ Prebuilt archives for macOS and Linux are available on the repository's
 
 ## Why Todo?
 
-- **Obsessively simple.** Four commands, no flags, ordinary task descriptions,
-  and single-line tasks instead of stories or comment threads. Connect related
-  tasks instead.
-- **Agent-friendly.** No skill or MCP server is required. The compact,
-  searchable output is token-efficient, and `todo help` contains everything a
-  human or agent needs to operate it.
+- **Obsessively simple.** Four commands, no flags. Tasks fit on one line.
+  Connect related tasks instead of writing stories or comment threads.
+- **Agent-friendly.** No skill or MCP server is required. Compact, searchable
+  output saves tokens. `todo help` explains every command.
 - **Ephemeral by design.** The task list is an action queue, not a historical
   record. Deleted tasks leave the queue; optional backups allow manual recovery.
 - **SQLite by choice.** The non-textual database discourages manual edits and
@@ -93,5 +91,5 @@ Delete by ID or tag, with OR for multiple filters
 
 ## Contributing / Support
 
-If you experience any issue, have a question or a suggestion, or if you wish to
-contribute, feel free to [open an issue](https://github.com/DannyBen/todo/issues).
+For issues, questions, suggestions, or contributions,
+[open an issue](https://github.com/DannyBen/todo/issues).

@@ -17,6 +17,7 @@ func TestHelp(t *testing.T) {
 			if err := Execute([]string{command}, "1.2.3", &stdout); err != nil {
 				t.Fatal(err)
 			}
+			text := strings.Join(strings.Fields(stdout.String()), " ")
 			for _, expected := range []string{
 				"todo add TEXT...",
 				"todo del FILTER...",
@@ -49,7 +50,7 @@ func TestHelp(t *testing.T) {
 				".backupid",
 				"NO_COLOR",
 			} {
-				if !strings.Contains(stdout.String(), expected) {
+				if !strings.Contains(text, strings.Join(strings.Fields(expected), " ")) {
 					t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())
 				}
 			}

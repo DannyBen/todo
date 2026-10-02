@@ -21,12 +21,12 @@ Todo - A lightweight project todo list
   ID      task ID or range; join multiple selections with `/`
   TAG     starts with a letter or digit; may contain hyphens or underscores
 
-Spaces between filters mean AND. `/` means OR within one filter group and may
-join different filter types.
+  Spaces between filters mean AND. `/` means OR within one filter group.
+  An OR group may combine different filter types.
 
 **Operators:**
 
-Everything is ordinary text except the operator forms below.
+  Everything is ordinary text except the operator forms below.
 
   +  Add or Has
      todo edit 12 +defer
@@ -51,31 +51,51 @@ Everything is ordinary text except the operator forms below.
      todo add Test the :-h flag and :+draft syntax
      todo list :-h
 
-After `+` or `-`, an all-digit value is a connection; any other valid value is a
-tag. A prefix is special only when the whole token is valid. For example,
-`+tag` adds a tag, while the separate words `+ tag` are ordinary text. Invalid
-operations and standalone `+`, `-`, or `--` are also ordinary text. The `:`
-literal marker is removed before storing or matching. Removals during `todo add`
-are accepted and have no effect.
+  After `+` or `-`, an all-digit value is a connection. Other valid values are
+  tags.
 
-During `todo edit`, ordinary text replaces the description. When an edit contains
-only tag and connection operations, the existing description remains unchanged.
-With no text, `todo edit ID` opens the current description, tags, and connections
-in an inline editor. Enter saves the edit and Ctrl+C cancels it. Interactive edits
-require a terminal; provide text on the command line in scripts.
-Multiple IDs and ranges receive the same tag and connection operations atomically.
-Bulk selectors (any range or selections joined with `/`) cannot replace task
-descriptions or open the interactive editor, even if only one task matches.
-Ranges select existing IDs, not a count of tasks. Missing IDs inside a range are
-skipped; explicitly named IDs must exist for edits and deletions. Edits and
-deletions fail when a range selection matches no tasks; listing returns no output.
-Reversed ranges and bare `..` are invalid. Ranges select tasks, not connections.
-`todo del` accepts the same filters as `todo list`, deletes every match
-atomically, and prints each removed task so it can be recovered. Use `todo list`
-with the same filters to preview.
+  A prefix is special only when the whole token is valid. `+tag` adds a tag;
+  the separate words `+ tag` are ordinary text. Invalid operations and
+  standalone `+`, `-`, or `--` are also ordinary text.
 
-Connections are symmetric: adding `+2` to task 1 also shows `+1` on task 2.
-Removing the connection from either task removes it from both.
+  The `:` literal marker is removed before storing or matching.
+  Removals during `todo add` are accepted and have no effect.
+
+**Editing:**
+
+  During `todo edit`, ordinary text replaces the description.
+  Edits with only tag and connection operations preserve the description.
+
+  With no text, `todo edit ID` opens the complete task in an inline editor.
+  Enter saves the edit. Ctrl+C cancels it. Interactive edits require a terminal.
+  In scripts, provide the edit text on the command line.
+
+  Multiple IDs and ranges receive the same tag and connection operations
+  atomically. Bulk selectors (any range or selections joined with `/`) cannot
+  replace task descriptions or open the interactive editor, even if only one
+  task matches.
+
+**Ranges:**
+
+  Ranges select existing IDs, not a count of tasks. Missing IDs in a range are
+  skipped. Explicitly named IDs must exist for edits and deletions.
+
+  Edits and deletions fail when a range selection matches no tasks.
+  Listing an empty range returns no output.
+
+  Reversed ranges and bare `..` are invalid. Ranges select tasks, not
+  connections.
+
+**Deleting:**
+
+  `todo del` accepts the same filters as `todo list`. Use `todo list` to
+  preview. Deletion removes every match atomically and prints each removed task.
+  Keep this output if you need to recover the task details.
+
+**Connections:**
+
+  Connections are symmetric. Adding `+2` to task 1 also shows `+1` on task 2.
+  Removing a connection from either task removes it from both.
 
 **Examples:**
 
@@ -126,14 +146,17 @@ Removing the connection from either task removes it from both.
     export TODO_BACKUP=.todo      # choose a directory; default count is 10
     export TODO_BACKUP=30@.todo   # choose both count and directory
 
-  Relative paths resolve beside the database. Successful changes save the previous
-  database as PROJECT-TIMESTAMP.sqlite, retaining the newest snapshots. Errors and
-  edits that change nothing do not add backups; backup creation failures stop the
-  change.
+  Relative paths resolve beside the database. Successful changes save the
+  previous database as PROJECT-TIMESTAMP.sqlite. Only the newest snapshots are
+  retained.
+
+  Errors and edits that change nothing do not add backups.
+  Backup creation failures stop the change.
 
   Todo claims only absent or empty directories, creating `.backupid` with the
-  database's canonical path. Existing directories require a matching `.backupid`.
-  Use one backup directory per database and exclude it from version control.
+  database's canonical path. Existing directories require a matching
+  `.backupid`. Use one backup directory per database and exclude it from version
+  control.
 
   To restore, stop any running Todo commands and copy the chosen snapshot over
   the database. This restores everything, including the task ID counter.
