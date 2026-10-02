@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cloc --quiet --show-errors --csv --by-file --include-lang=Go main.go cmd internal |
+  awk -F, '
+    $1 == "Go" {
+      group = $2 ~ /_test[.]go$/ ? "Tests" : "Code"
+      files[group]++
+      blanks[group] += $3
+      comments[group] += $4
+      code[group] += $5
+    }
+    END {
+      printf "%-10s %8s %8s %8s %8s\n", "Go", "Files", "Blank", "Comments", "Code"
+      split("Code Tests", groups, " ")
+      for (i = 1; i <= 2; i++) {
+        group = groups[i]
+        printf "%-10s %8d %8d %8d %8d\n", group, files[group], blanks[group], comments[group], code[group]
+      }
+    }
+  '
