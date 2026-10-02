@@ -173,28 +173,47 @@ func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stde
 	if len(args) < 1 {
 		return usageError{message: "usage: todo edit ID [TEXT...]"}
 	}
-	ids, err := parseIDs(args[0])
+	selection, err := task.ParseSelection(args[0])
 	if err != nil {
 		return err
 	}
 	if len(args) == 1 {
-		if len(ids) != 1 {
+		if selection.Bulk() {
 			return fmt.Errorf("multiple task IDs require an edit expression")
 		}
-		return runInteractiveEdit(database, ids[0], stdin, stdout, stderr, prompt)
+		id, err := parseID(args[0])
+		if err != nil {
+			return err
+		}
+		return runInteractiveEdit(database, id, stdin, stdout, stderr, prompt)
 	}
-	return applyEdits(database, ids, args[1:], stdout)
+	change, err := task.ParseChange(args[1:])
+	if err != nil {
+		return err
+	}
+	if selection.Bulk() && change.Description != nil {
+		return fmt.Errorf("bulk edits cannot replace task descriptions; use only tag and connection operations")
+	}
+	items, err := database.List()
+	if err != nil {
+		return err
+	}
+	ids, err := selection.Resolve(items)
+	if err != nil {
+		return err
+	}
+	return applyChanges(database, ids, change, stdout)
 }
 
 func applyEdit(database *store.Store, id int64, args []string, stdout io.Writer) error {
-	return applyEdits(database, []int64{id}, args, stdout)
-}
-
-func applyEdits(database *store.Store, ids []int64, args []string, stdout io.Writer) error {
 	change, err := task.ParseChange(args)
 	if err != nil {
 		return err
 	}
+	return applyChanges(database, []int64{id}, change, stdout)
+}
+
+func applyChanges(database *store.Store, ids []int64, change task.Change, stdout io.Writer) error {
 	if len(ids) == 1 {
 		updated, err := database.Edit(ids[0], change)
 		if err != nil {
@@ -280,7 +299,15 @@ func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return usageError{message: "usage: todo del FILTER..."}
 	}
-	if ids, err := parseIDs(args[0]); len(args) == 1 && err == nil {
+	if selection, err := task.ParseSelection(args[0]); len(args) == 1 && err == nil {
+		items, err := database.List()
+		if err != nil {
+			return err
+		}
+		ids, err := selection.Resolve(items)
+		if err != nil {
+			return err
+		}
 		if len(ids) == 1 {
 			deleted, err := database.Delete(ids[0])
 			if err != nil {
@@ -298,6 +325,15 @@ func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	matches, err := matchingTasks(database, args)
 	if err != nil {
 		return err
+	}
+	if len(matches) == 0 {
+		filters, err := task.ParseFilters(args)
+		if err != nil {
+			return err
+		}
+		if filters.HasRanges() {
+			return fmt.Errorf("no tasks match selection")
+		}
 	}
 	ids := make([]int64, len(matches))
 	for index, item := range matches {

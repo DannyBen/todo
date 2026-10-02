@@ -47,7 +47,7 @@ Prebuilt archives for macOS and Linux are available on the repository's
   human or agent needs to operate it.
 - **Ephemeral by design.** The task list is an action queue, not a historical
   record. Deleted tasks are truly removed, not archived.
-- **SQLite by design.** The non-textual database discourages manual edits and
+- **SQLite by choice.** The non-textual database discourages manual edits and
   accidental commits. Use the CLI as the shared interface.
 - **Your conventions.** Todo defines no priorities or workflow. Choose tags such
   as `+high`, `+low`, `+p1`, `+now`, and `+done`, then teach your agent the same

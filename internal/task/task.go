@@ -31,6 +31,7 @@ type filterKind uint8
 const (
 	termFilter filterKind = iota
 	idFilter
+	rangeFilter
 	includeTagFilter
 	excludeTagFilter
 	includeReferenceFilter
@@ -41,6 +42,7 @@ type filterPredicate struct {
 	kind  filterKind
 	value string
 	id    int64
+	end   int64
 }
 
 type tokenKind uint8
@@ -144,6 +146,9 @@ func (filters Filters) Match(item Task) bool {
 }
 
 func parseFilterPredicate(value string) (filterPredicate, error) {
+	if rangeToken(value) {
+		return parseRange(value)
+	}
 	parsed := classifyToken(value)
 	switch parsed.kind {
 	case removeReferenceToken:
@@ -172,6 +177,8 @@ func (predicate filterPredicate) match(item Task, description string) bool {
 	switch predicate.kind {
 	case idFilter:
 		return item.ID == predicate.id
+	case rangeFilter:
+		return item.ID >= predicate.id && (predicate.end == 0 || item.ID <= predicate.end)
 	case includeTagFilter:
 		return containsString(item.Tags, predicate.value)
 	case excludeTagFilter:

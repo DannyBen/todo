@@ -141,6 +141,9 @@ func (store *Store) Edit(id int64, change task.Change) (task.Task, error) {
 }
 
 func (store *Store) EditMany(ids []int64, change task.Change) ([]task.Task, error) {
+	if len(ids) > 1 && change.Description != nil {
+		return nil, fmt.Errorf("bulk edits cannot replace task descriptions; use only tag and connection operations")
+	}
 	tx, err := store.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin multi-task edit: %w", err)

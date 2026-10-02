@@ -17,8 +17,8 @@ Todo - A lightweight project todo list
 **Arguments:**
 
   TEXT    description text with optional tag or connection operations
-  FILTER  words, IDs, tags, or connections used to select tasks
-  ID      task ID; join multiple IDs with `/`
+  FILTER  words, IDs, ID ranges, tags, or connections used to select tasks
+  ID      task ID or range; join multiple selections with `/`
   TAG     starts with a letter or digit; may contain hyphens or underscores
 
 Spaces between filters mean AND. `/` means OR within one filter group and may
@@ -41,6 +41,12 @@ Everything is ordinary text except the operator forms below.
      todo rm 3/4/5
      todo rm 3/4/5/+low
 
+  .. Inclusive task ID range; either end may be omitted
+     todo list 1..10
+     todo list ..10
+     todo list 20..
+     todo edit 2..4/8 +ready
+
   :  Treat a leading + or - as text
      todo add Test the :-h flag and :+draft syntax
      todo list :-h
@@ -57,7 +63,13 @@ only tag and connection operations, the existing description remains unchanged.
 With no text, `todo edit ID` opens the current description, tags, and connections
 in an inline editor. Enter saves the edit and Ctrl+C cancels it. Interactive edits
 require a terminal; provide text on the command line in scripts.
-Multiple IDs separated by `/` receive the same non-interactive edit atomically.
+Multiple IDs and ranges receive the same tag and connection operations atomically.
+Bulk selectors (any range or selections joined with `/`) cannot replace task
+descriptions or open the interactive editor, even if only one task matches.
+Ranges select existing IDs, not a count of tasks. Missing IDs inside a range are
+skipped; explicitly named IDs must exist for edits and deletions. Edits and
+deletions fail when a range selection matches no tasks; listing returns no output.
+Reversed ranges and bare `..` are invalid. Ranges select tasks, not connections.
 `todo del` accepts the same filters as `todo list`, deletes every match
 atomically, and prints each removed task so it can be recovered. Use `todo list`
 with the same filters to preview.
@@ -85,6 +97,17 @@ Removing the connection from either task removes it from both.
 
   Apply the same edit to several tasks atomically:
     todo edit 2/3 +ready -defer
+
+  Tag a batch of recently added tasks:
+    todo edit 20.. +maybe -consider
+
+  View the beginning or end of the list by ID:
+    todo list ..10
+    todo list 20..
+
+  Preview an ID range before deleting it:
+    todo list 1..10
+    todo del 1..10
 
   Preview completed tasks before deleting them:
     todo list +done

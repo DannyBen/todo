@@ -114,6 +114,16 @@ func TestEditAndDeleteManyAreAtomic(t *testing.T) {
 	if len(updated) != 2 || task.Format(updated[0]) != "1 First +batch" || task.Format(updated[1]) != "3 Third +batch" {
 		t.Fatalf("updated tasks = %#v", updated)
 	}
+	replacement := "Replacement"
+	if _, err := database.EditMany([]int64{first.ID, third.ID}, task.Change{Description: &replacement}); err == nil {
+		t.Fatal("bulk description replacement did not fail")
+	}
+	for _, original := range []task.Task{first, third} {
+		current, err := database.Get(original.ID)
+		if err != nil || current.Description != original.Description {
+			t.Fatalf("bulk replacement changed task %d: %#v, err=%v", original.ID, current, err)
+		}
+	}
 
 	if _, err := database.EditMany([]int64{first.ID, 99}, task.Change{AddTags: []string{"rollback"}}); err == nil {
 		t.Fatal("edit with a missing task did not fail")
