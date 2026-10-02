@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -222,18 +223,28 @@ func (write *mutation) Commit() error {
 	}
 	name := backup.prefix + time.Now().UTC().Format(backupTimeFormat) + ".sqlite"
 	destination := filepath.Join(backup.dir, name)
-	// Reserve the final name so a timestamp collision cannot overwrite a backup.
+	// Keep the exclusive destination handle open through copying and syncing.
+	// Replacing a reserved file with Rename can fail on VM shared folders.
 	file, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return fmt.Errorf("reserve backup name: %w", err)
 	}
-	if err := file.Close(); err != nil {
+	source, err := os.Open(backup.pending)
+	if err != nil {
+		file.Close()
 		os.Remove(destination)
-		return err
+		return fmt.Errorf("open pending snapshot: %w", err)
 	}
-	if err := os.Rename(backup.pending, destination); err != nil {
+	_, copyErr := io.Copy(file, source)
+	syncErr := file.Sync()
+	closeErr := errors.Join(source.Close(), file.Close())
+	if err := errors.Join(copyErr, syncErr, closeErr); err != nil {
 		os.Remove(destination)
 		return fmt.Errorf("publish backup: %w", err)
+	}
+	if err := os.Remove(backup.pending); err != nil {
+		os.Remove(destination)
+		return fmt.Errorf("remove pending snapshot: %w", err)
 	}
 	backup.pending = destination
 	if err := write.Tx.Commit(); err != nil {
