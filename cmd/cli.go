@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -92,7 +93,7 @@ func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, s
 
 	switch command {
 	case "add":
-		return runAdd(database, args[1:], stdout)
+		return runAdd(database, args[1:], stdin, stdout)
 	case "list":
 		return runList(database, args[1:], stdout)
 	case "edit":
@@ -129,9 +130,12 @@ func PrintError(err error, stderr io.Writer) {
 	fmt.Fprintf(stderr, "error: %v\n", err)
 }
 
-func runAdd(database *store.Store, args []string, stdout io.Writer) error {
+func runAdd(database *store.Store, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
-		return usageError{message: "usage: todo add TEXT..."}
+		if input, ok := stdin.(*os.File); ok && term.IsTerminal(int(input.Fd())) {
+			return usageError{message: "usage: todo add TEXT..."}
+		}
+		return runAddInput(database, stdin, stdout)
 	}
 	change, err := task.ParseChange(args)
 	if err != nil {
@@ -145,6 +149,47 @@ func runAdd(database *store.Store, args []string, stdout io.Writer) error {
 		return err
 	}
 	return printTasks(stdout, []task.Task{created})
+}
+
+func runAddInput(database *store.Store, stdin io.Reader, stdout io.Writer) error {
+	var changes []task.Change
+	var lines []int
+	reader := bufio.NewReader(stdin)
+	for line := 1; ; line++ {
+		text, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("line %d: read input: %w; no tasks added", line, err)
+		}
+		if strings.TrimSpace(text) != "" {
+			change, parseErr := task.ParseChange([]string{text})
+			if parseErr != nil {
+				return fmt.Errorf("line %d: %w; no tasks added", line, parseErr)
+			}
+			if change.Description == nil || *change.Description == "" {
+				return fmt.Errorf("line %d: task description cannot be empty; no tasks added", line)
+			}
+			changes = append(changes, change)
+			lines = append(lines, line)
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+	created, err := database.AddMany(changes)
+	if len(created) > 0 {
+		if outputErr := printTasks(stdout, created); outputErr != nil {
+			return errors.Join(err, fmt.Errorf("tasks saved, but writing output failed: %w", outputErr))
+		}
+		return err
+	}
+	if err != nil {
+		var itemErr *store.AddManyError
+		if errors.As(err, &itemErr) {
+			return fmt.Errorf("line %d: %w; no tasks added", lines[itemErr.Index], itemErr.Err)
+		}
+		return fmt.Errorf("%w; no tasks added", err)
+	}
+	return nil
 }
 
 func runList(database *store.Store, args []string, stdout io.Writer) error {

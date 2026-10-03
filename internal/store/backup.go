@@ -32,6 +32,7 @@ type backup struct {
 type mutation struct {
 	*sql.Tx
 	backup *backup
+	saved  bool
 }
 
 func databaseURI(path, key, value string) string {
@@ -250,6 +251,7 @@ func (write *mutation) Commit() error {
 	if err := write.Tx.Commit(); err != nil {
 		return err
 	}
+	write.saved = true
 	backup.pending = ""
 	if err := backup.prune(); err != nil {
 		return fmt.Errorf("change saved and backup created, but retention failed: %w", err)

@@ -73,6 +73,19 @@ Todo - A lightweight project todo list
   The `:` literal marker is removed before storing or matching.
   Removals during `todo add` are accepted and have no effect.
 
+**Adding from a file:**
+
+  todo add < tasks.txt
+  cat tasks.txt | todo add
+
+  With no text arguments, redirected input adds one task per line.
+  Blank lines are ignored. Each line uses the normal task syntax.
+  Connections must target tasks that already exist before the import.
+
+  The entire batch is added atomically. A failure adds no tasks and reports
+  the offending line when available. Success prints all added tasks in input
+  order. Empty input adds nothing and prints nothing.
+
 **Editing:**
 
   During `todo edit`, ordinary text replaces the description.

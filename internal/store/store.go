@@ -117,24 +117,82 @@ func (store *Store) Add(description string, tags []string, references []int64) (
 	}
 	defer tx.Rollback()
 
-	result, err := tx.Exec("INSERT INTO tasks (description) VALUES (?)", description)
+	id, err := insertTask(tx, description, tags, references)
 	if err != nil {
-		return task.Task{}, fmt.Errorf("add task: %w", err)
-	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return task.Task{}, fmt.Errorf("read task ID: %w", err)
-	}
-	if err := addTags(tx, id, tags); err != nil {
-		return task.Task{}, err
-	}
-	if err := addReferences(tx, id, references); err != nil {
 		return task.Task{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return task.Task{}, fmt.Errorf("commit add: %w", err)
 	}
 	return store.Get(id)
+}
+
+// AddManyError identifies the zero-based input index that failed.
+type AddManyError struct {
+	Index int
+	Err   error
+}
+
+func (err *AddManyError) Error() string { return err.Err.Error() }
+func (err *AddManyError) Unwrap() error { return err.Err }
+
+// AddMany adds a batch atomically. Connections must target existing tasks.
+func (store *Store) AddMany(changes []task.Change) ([]task.Task, error) {
+	if len(changes) == 0 {
+		return nil, nil
+	}
+	tx, err := store.beginMutation()
+	if err != nil {
+		return nil, fmt.Errorf("begin multi-task add: %w", err)
+	}
+	defer tx.Rollback()
+	for index, change := range changes {
+		if change.Description == nil || *change.Description == "" {
+			return nil, &AddManyError{Index: index, Err: fmt.Errorf("task description cannot be empty")}
+		}
+		for _, reference := range change.AddReferences {
+			if err := requireTask(tx, reference); err != nil {
+				return nil, &AddManyError{Index: index, Err: fmt.Errorf("connection target %d: %w", reference, err)}
+			}
+		}
+	}
+	created := make([]task.Task, 0, len(changes))
+	for index, change := range changes {
+		id, err := insertTask(tx, *change.Description, change.AddTags, change.AddReferences)
+		if err != nil {
+			return nil, &AddManyError{Index: index, Err: err}
+		}
+		item, err := get(tx, id)
+		if err != nil {
+			return nil, &AddManyError{Index: index, Err: err}
+		}
+		created = append(created, item)
+	}
+	if err := tx.Commit(); err != nil {
+		if tx.saved {
+			return created, err
+		}
+		return nil, fmt.Errorf("commit multi-task add: %w", err)
+	}
+	return created, nil
+}
+
+func insertTask(tx executor, description string, tags []string, references []int64) (int64, error) {
+	result, err := tx.Exec("INSERT INTO tasks (description) VALUES (?)", description)
+	if err != nil {
+		return 0, fmt.Errorf("add task: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("read task ID: %w", err)
+	}
+	if err := addTags(tx, id, tags); err != nil {
+		return 0, err
+	}
+	if err := addReferences(tx, id, references); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (store *Store) Edit(id int64, change task.Change) (task.Task, error) {

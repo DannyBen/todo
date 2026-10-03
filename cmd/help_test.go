@@ -134,7 +134,7 @@ func TestUsageErrors(t *testing.T) {
 	}{
 		{name: "no command", want: "Todo - A lightweight project todo list"},
 		{name: "unknown command", args: []string{"nope"}, want: `unknown command "nope"`},
-		{name: "add without text", args: []string{"add"}, want: "usage: todo add TEXT..."},
+		{name: "add without description", args: []string{"add", "+ready"}, want: "task description cannot be empty"},
 		{name: "delete without filter", args: []string{"del"}, want: "usage: todo del FILTER..."},
 		{name: "invalid edit ID", args: []string{"edit", "bad", "+done"}, want: `invalid task ID "bad"`},
 		{name: "invalid delete ID", args: []string{"del", "0"}, want: `invalid task ID "0"`},
