@@ -20,7 +20,7 @@ Todo - A lightweight project todo list
 
   TEXT    description text with optional tag or connection operations
   FILTER  words, IDs, ID ranges, tags, or connections used to select tasks
-  ID      task ID or range; join multiple selections with `/`
+  ID      task ID, range, or ID+; join multiple selections with `/`
   TAG     starts with a letter or digit; may contain hyphens or underscores
 
   Spaces between filters mean AND. `/` means OR within one filter group.
@@ -30,31 +30,41 @@ Todo - A lightweight project todo list
 
   Everything is ordinary text except the operator forms below.
 
-  +  Add or Has
-     todo edit 12 +defer
-     todo list +high
+  +ID     Add a reference or select tasks referencing an ID
+          todo edit 12 +13      # connect task 12 to task 13
+          todo list +12         # list tasks connected to task 12
 
-  -  Remove or Doesn't Have
-     todo edit 12 -defer
-     todo list -blocked
+  +TAG    Add a tag or select tasks with a tag
+          todo edit 12 +maybe   # tag task 12 with 'maybe'
+          todo list +maybe      # list tasks tagged 'maybe'
 
-  /  OR when selecting tasks
-     todo list +maybe/+consider
-     todo rm 3/4/5
-     todo rm 3/4/5/+low
+  -ID     Remove a reference or exclude tasks referencing an ID
+          todo edit 12 -13      # disconnect task 12 from task 13
+          todo list -12         # list tasks not connected to task 12
 
-  .. Inclusive task ID range; either end may be omitted
-     todo list 1..10
-     todo list ..10
-     todo list 20..
-     todo edit 2..4/8 +ready
+  -TAG    Remove a tag or select tasks without a tag
+          todo edit 12 -maybe   # remove 'maybe' from task 12
+          todo list -maybe      # list tasks without 'maybe'
 
-  :  Treat a leading + or - as text
-     todo add Test the :-h flag and :+draft syntax
-     todo list :-h
+  /       OR when selecting tasks
+          todo list +hi/+low    # list tasks tagged with either tag
+          todo del 3/4/5        # delete multiple tasks
+          todo del 3/4/5/+low   # delete tasks 3, 4, 5 or tagged 'low'
+          todo list 12/+12      # list task 12 and its connected tasks
 
-  After `+` or `-`, an all-digit value is a connection. Other valid values are
-  tags.
+  ID+     Task and its connections (shorthand for ID/+ID)
+          todo list 12+         # same as todo list 12/+12
+          todo edit 12+ +done   # mark task 12 and its connections done
+
+  ID..ID  Inclusive task ID range (either end may be omitted)
+          todo list 1..10       # list all tasks between 1 and 10
+          todo list ..10        # list all tasks up to 10
+          todo list 20..        # list all tasks from 20 onward
+          todo edit 2..4/8 +hi  # tag tasks 2, 3, 4, 8 with 'hi'
+
+  :OP     Treat a leading + or - as text
+          todo add Test the :-h flag and :+draft syntax
+          todo list :-h
 
   A prefix is special only when the whole token is valid. `+tag` adds a tag;
   the separate words `+ tag` are ordinary text. Invalid operations and
@@ -72,10 +82,10 @@ Todo - A lightweight project todo list
   Enter saves the edit. Ctrl+C cancels it. Interactive edits require a terminal.
   In scripts, provide the edit text on the command line.
 
-  Multiple IDs and ranges receive the same tag and connection operations
-  atomically. Bulk selectors (any range or selections joined with `/`) cannot
-  replace task descriptions or open the interactive editor, even if only one
-  task matches.
+  Multiple IDs, ranges, and connections receive the same tag and connection
+  operations atomically. Bulk selectors (ranges, connections, `ID+`, or
+  selections joined with `/`) cannot replace task descriptions or open the
+  interactive editor, even if only one task matches.
 
 **Ranges:**
 
@@ -114,8 +124,8 @@ Todo - A lightweight project todo list
     todo edit 1 +2
     todo list 1/2
 
-  List task 2 OR tasks connected to task 2:
-    todo list 2/+2
+  List task 2 and its connected tasks:
+    todo list 2+
 
   Apply the same edit to several tasks atomically:
     todo edit 2/3 +ready -defer

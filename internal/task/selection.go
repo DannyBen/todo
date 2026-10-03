@@ -5,27 +5,39 @@ import (
 	"strings"
 )
 
-// Selection selects explicit IDs and inclusive ranges, joined with OR.
+// Selection selects explicit IDs, inclusive ranges, and connections, joined with OR.
 type Selection struct {
 	parts []filterPredicate
 	bulk  bool
 }
 
 func ParseSelection(value string) (Selection, error) {
-	parts := strings.Split(value, "/")
+	parts := selectionParts(value)
 	selection := Selection{bulk: len(parts) > 1}
 	for _, part := range parts {
 		predicate, err := parseFilterPredicate(part)
 		if err != nil {
 			return Selection{}, err
 		}
-		if predicate.kind != idFilter && predicate.kind != rangeFilter {
+		if predicate.kind != idFilter && predicate.kind != rangeFilter && predicate.kind != includeReferenceFilter {
 			return Selection{}, fmt.Errorf("invalid task ID %q", value)
 		}
 		selection.parts = append(selection.parts, predicate)
-		selection.bulk = selection.bulk || predicate.kind == rangeFilter
+		selection.bulk = selection.bulk || predicate.kind != idFilter
 	}
 	return selection, nil
+}
+
+func selectionParts(value string) []string {
+	var parts []string
+	for _, part := range strings.Split(value, "/") {
+		if id, ok := strings.CutSuffix(part, "+"); ok && allDigits(id) {
+			parts = append(parts, id, "+"+id)
+		} else {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }
 
 func (selection Selection) Bulk() bool {

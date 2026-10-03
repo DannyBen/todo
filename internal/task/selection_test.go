@@ -84,3 +84,44 @@ func TestSelectionResolve(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectedIDFilters(t *testing.T) {
+	items := []Task{{ID: 1}, {ID: 2, References: []int64{1}}, {ID: 3}, {ID: 4, References: []int64{2}}}
+	for _, test := range []struct {
+		args []string
+		want []int64
+	}{
+		{[]string{"1+"}, []int64{1, 2}},
+		{[]string{"1+/4"}, []int64{1, 2, 4}},
+		{[]string{"1+/2+"}, []int64{1, 2, 4}},
+		{[]string{"1+", "-2"}, []int64{1, 2}},
+		{[]string{"1+", "2"}, []int64{2}},
+		{[]string{"3+"}, []int64{3}},
+		{[]string{"9+"}, nil},
+	} {
+		filters, err := ParseFilters(test.args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []int64
+		for _, item := range items {
+			if filters.Match(item) {
+				got = append(got, item.ID)
+			}
+		}
+		if !reflect.DeepEqual(got, test.want) {
+			t.Errorf("%v matched %v, want %v", test.args, got, test.want)
+		}
+	}
+	for _, value := range []string{"0+", "9223372036854775808+"} {
+		if _, err := ParseFilters([]string{value}); err == nil {
+			t.Errorf("invalid ID %q did not fail", value)
+		}
+	}
+	for _, value := range []string{"C++", "tag+", "1++"} {
+		filters, err := ParseFilters([]string{value})
+		if err != nil || !filters.Match(Task{Description: value}) {
+			t.Errorf("literal %q: %v", value, err)
+		}
+	}
+}

@@ -107,7 +107,7 @@ func ParseFilters(args []string) (Filters, error) {
 		tokens = append(tokens, strings.Fields(arg)...)
 	}
 	for _, token := range tokens {
-		parts := strings.Split(token, "/")
+		parts := selectionParts(token)
 		group := make([]filterPredicate, 0, len(parts))
 		for _, part := range parts {
 			if part == "" {
