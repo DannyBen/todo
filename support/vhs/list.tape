@@ -1,4 +1,5 @@
-Source "support/vhs/_base.tape"
+Source "support/vhs/_config.tape"
+Source "support/vhs/_seed.tape"
 
 Hide
 Type@1ms "todo add review dependency update +now"
@@ -14,6 +15,9 @@ Type "todo ls +now"
 Enter
 Sleep 1s
 Type "todo ls +now -bug"
+Enter
+Sleep 1s
+Type "todo ls 1..3"
 Enter
 Sleep 1s
 Type "todo ls +docs/+release"

@@ -1,4 +1,5 @@
-Source "support/vhs/_base.tape"
+Source "support/vhs/_config.tape"
+Source "support/vhs/_seed.tape"
 
 Hide
 Type@1ms "todo add update dependencies +done"
@@ -10,7 +11,6 @@ Enter
 Type@1ms "clear"
 Enter
 Show
-Sleep 1s
 
 Type "todo list"
 Enter

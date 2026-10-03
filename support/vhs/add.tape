@@ -1,4 +1,5 @@
-Source "support/vhs/_base.tape"
+Source "support/vhs/_config.tape"
+Source "support/vhs/_seed.tape"
 
 Type "todo add review dependency update +now"
 Enter

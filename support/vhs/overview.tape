@@ -1,13 +1,4 @@
-Set Shell "bash"
-Set FontSize 28
-Set Width 1100
-Set Height 660
-Set Padding 20
-Set TypingSpeed 45ms
-
-Env TODO_FILE "support/vhs/.overview.sqlite"
-Env PS1 "\n$ "
-Env NO_COLOR ""
+Source "support/vhs/_config.tape"
 
 Hide
 Type@1ms "rm -f $TODO_FILE && clear"
@@ -25,7 +16,6 @@ Enter
 Type@1ms "clear"
 Enter
 Show
-Sleep 1s
 
 Type "todo add prepare release +release"
 Enter

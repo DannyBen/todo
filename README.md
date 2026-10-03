@@ -67,15 +67,19 @@ Add tasks with plain text and optional tags
 
 <img src="support/vhs/add.gif" width="500">
 
-Import one task per line with `todo add < tasks.txt` or `cat tasks.txt | todo add`.
-Blank lines are ignored. The batch succeeds completely or adds nothing, and
-success prints every added task.
+### Adding tasks from a file
+
+Add tasks in bulk from a file.
+
+<img src="support/vhs/add-stdin.gif" width="500">
 
 ### Editing tasks
 
 Edit task text, tags, or both directly from the command line.
 
 <img src="support/vhs/edit.gif" width="500">
+
+### Editing tasks interactively
 
 Run `todo edit ID` without text to edit the complete task interactively.
 
