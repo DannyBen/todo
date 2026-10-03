@@ -11,7 +11,7 @@ import (
 )
 
 func TestHelp(t *testing.T) {
-	for _, command := range []string{"help", "--help", "-h"} {
+	for _, command := range []string{"help", "h", "--help", "-h"} {
 		t.Run(command, func(t *testing.T) {
 			var stdout bytes.Buffer
 			if err := Execute([]string{command}, "1.2.3", &stdout); err != nil {
@@ -22,7 +22,11 @@ func TestHelp(t *testing.T) {
 				"todo add TEXT...",
 				"todo del FILTER...",
 				"todo help",
-				"todo new = todo add",
+				"add => a, new",
+				"list => l, ls",
+				"edit => e",
+				"del => d, rm",
+				"help => h",
 				"Arguments:",
 				"Operators:",
 				"Everything is ordinary text except the operator forms below.",
@@ -255,6 +259,31 @@ func TestDatabaseFileResolution(t *testing.T) {
 
 	if got, err := databaseFile(); err != nil || got != filepath.Join(root, ".todo.sqlite") {
 		t.Fatalf("databaseFile() = %q, %v; want Git-root database", got, err)
+	}
+}
+
+func TestSingleLetterAliasWorkflow(t *testing.T) {
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	t.Setenv("TODO_BACKUP", "")
+	var stdout bytes.Buffer
+	for _, step := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"a", "Check", "aliases", "+now"}, "1 Check aliases +now\n"},
+		{[]string{"l", "+now"}, "1 Check aliases +now\n"},
+		{[]string{"e", "1", "-now", "+done"}, "1 Check aliases +done\n"},
+		{[]string{"l", "+now"}, ""},
+		{[]string{"d", "+done"}, "1 Check aliases +done\n"},
+		{[]string{"l"}, ""},
+	} {
+		stdout.Reset()
+		if err := Execute(step.args, "test", &stdout); err != nil {
+			t.Fatalf("%v: %v", step.args, err)
+		}
+		if got := stdout.String(); got != step.want {
+			t.Fatalf("%v output = %q, want %q", step.args, got, step.want)
+		}
 	}
 }
 
