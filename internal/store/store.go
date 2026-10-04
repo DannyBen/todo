@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/dannyben/todo/internal/task"
@@ -27,11 +28,23 @@ type queryer interface {
 }
 
 func Open(path string) (*Store, error) {
+	return open(path, "rwc")
+}
+
+// OpenExisting opens a database without creating a missing file.
+func OpenExisting(path string) (*Store, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("open todo database: %w", err)
+	}
+	return open(path, "rw")
+}
+
+func open(path, mode string) (*Store, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
-	db, err := sql.Open("sqlite", databaseURI(path, "_txlock", "immediate"))
+	db, err := sql.Open("sqlite", databaseURI(path, "_txlock", "immediate")+"&mode="+mode)
 	if err != nil {
 		return nil, fmt.Errorf("open todo database: %w", err)
 	}

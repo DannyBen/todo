@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,23 @@ func TestOpenRejectsInvalidDatabasePath(t *testing.T) {
 	if database, err := Open(filepath.Join(file, "tasks.sqlite")); err == nil {
 		database.Close()
 		t.Fatal("expected invalid database path error")
+	}
+}
+
+func TestOpenExistingDoesNotCreateDatabase(t *testing.T) {
+	dir := t.TempDir()
+	if database, err := OpenExisting(filepath.Join(dir, "todo.sqlite")); err == nil {
+		database.Close()
+		t.Fatal("expected missing database error")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("error = %v, want missing file error", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("OpenExisting created files: %v", entries)
 	}
 }
 

@@ -85,7 +85,18 @@ func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, s
 	if err != nil {
 		return err
 	}
-	database, err := store.Open(dbFile)
+	openDatabase := store.OpenExisting
+	if command == "add" {
+		openDatabase = store.Open
+	}
+	database, err := openDatabase(dbFile)
+	if command != "add" && errors.Is(err, os.ErrNotExist) {
+		if command == "list" {
+			_, err := task.ParseFilters(args[1:])
+			return err
+		}
+		return fmt.Errorf("no todo database exists; use todo add to create one")
+	}
 	if err != nil {
 		return err
 	}
