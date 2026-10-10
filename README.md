@@ -22,7 +22,13 @@ Run `todo help` for the complete syntax and copy-ready examples.
 
 ## Install
 
-With [eget](https://github.com/zyedidia/eget):
+With Homebrew (compiles from source):
+
+```bash
+brew install dannyben/tap/todo
+```
+
+Or with [eget](https://github.com/zyedidia/eget):
 
 ```bash
 eget dannyben/todo

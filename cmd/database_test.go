@@ -21,6 +21,7 @@ func TestCommandsWithoutDatabase(t *testing.T) {
 		{args: []string{"e", "1"}, wantErr: "no todo database exists"},
 		{args: []string{"del", "+done"}, wantErr: "no todo database exists"},
 		{args: []string{"d", "1"}, wantErr: "no todo database exists"},
+		{args: []string{"r", "1"}, wantErr: "no todo database exists"},
 		{args: []string{"rm", "1"}, wantErr: "no todo database exists"},
 	} {
 		t.Run(strings.Join(test.args, " "), func(t *testing.T) {

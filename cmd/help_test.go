@@ -22,10 +22,10 @@ func TestHelp(t *testing.T) {
 				"todo add TEXT...",
 				"todo del FILTER...",
 				"todo help",
-				"add => a, new",
+				"add => a, n, new",
 				"list => l, ls",
 				"edit => e",
-				"del => d, rm",
+				"del => d, r, rm",
 				"help => h",
 				"Arguments:",
 				"Operators:",
@@ -281,6 +281,10 @@ func TestSingleLetterAliasWorkflow(t *testing.T) {
 		{[]string{"e", "1", "-now", "+done"}, "1 Check aliases +done\n"},
 		{[]string{"l", "+now"}, ""},
 		{[]string{"d", "+done"}, "1 Check aliases +done\n"},
+		{[]string{"l"}, ""},
+		{[]string{"n", "Check", "new", "aliases", "+now"}, "2 Check new aliases +now\n"},
+		{[]string{"l", "+now"}, "2 Check new aliases +now\n"},
+		{[]string{"r", "+now"}, "2 Check new aliases +now\n"},
 		{[]string{"l"}, ""},
 	} {
 		stdout.Reset()

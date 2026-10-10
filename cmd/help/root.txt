@@ -10,10 +10,10 @@ Todo - A lightweight project todo list
 
 **Aliases:**
 
-  add  => a, new
+  add  => a, n, new
   list => l, ls
   edit => e
-  del  => d, rm
+  del  => d, r, rm
   help => h
 
 **Arguments:**

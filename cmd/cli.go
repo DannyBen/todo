@@ -57,9 +57,9 @@ func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, s
 	switch command {
 	case "l", "ls":
 		command = "list"
-	case "a", "new":
+	case "a", "n", "new":
 		command = "add"
-	case "d", "rm":
+	case "d", "r", "rm":
 		command = "del"
 	case "e":
 		command = "edit"
