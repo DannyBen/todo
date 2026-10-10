@@ -73,6 +73,13 @@ Todo - A lightweight project todo list
   The `:` literal marker is removed before storing or matching.
   Removals during `todo add` are accepted and have no effect.
 
+**Adding:**
+
+  Descriptions are compared case-sensitively after normalizing whitespace.
+  Adding a description already stored fails, including tasks tagged +done.
+  Tags and connections do not affect duplicate detection. A duplicate prints
+  an error to stderr and exits nonzero.
+
 **Adding from a file:**
 
   todo add < tasks.txt
@@ -81,6 +88,7 @@ Todo - A lightweight project todo list
   With no text arguments, redirected input adds one task per line.
   Blank lines are ignored. Each line uses the normal task syntax.
   Connections must target tasks that already exist before the import.
+  Duplicates against stored tasks or within the input reject the entire batch.
 
   The entire batch is added atomically. A failure adds no tasks and reports
   the offending line when available. Success prints all added tasks in input

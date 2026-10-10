@@ -159,10 +159,15 @@ func (store *Store) AddMany(changes []task.Change) ([]task.Task, error) {
 		return nil, fmt.Errorf("begin multi-task add: %w", err)
 	}
 	defer tx.Rollback()
+	seen := make(map[string]bool, len(changes))
 	for index, change := range changes {
 		if change.Description == nil || *change.Description == "" {
 			return nil, &AddManyError{Index: index, Err: fmt.Errorf("task description cannot be empty")}
 		}
+		if seen[*change.Description] {
+			return nil, &AddManyError{Index: index, Err: fmt.Errorf("duplicate task description %q in input", *change.Description)}
+		}
+		seen[*change.Description] = true
 		for _, reference := range change.AddReferences {
 			if err := requireTask(tx, reference); err != nil {
 				return nil, &AddManyError{Index: index, Err: fmt.Errorf("connection target %d: %w", reference, err)}
@@ -191,6 +196,14 @@ func (store *Store) AddMany(changes []task.Change) ([]task.Task, error) {
 }
 
 func insertTask(tx executor, description string, tags []string, references []int64) (int64, error) {
+	var existingID int64
+	err := tx.QueryRow("SELECT id FROM tasks WHERE description = ? ORDER BY id LIMIT 1", description).Scan(&existingID)
+	if err == nil {
+		return 0, fmt.Errorf("task already exists (%d)", existingID)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("check duplicate description: %w", err)
+	}
 	result, err := tx.Exec("INSERT INTO tasks (description) VALUES (?)", description)
 	if err != nil {
 		return 0, fmt.Errorf("add task: %w", err)

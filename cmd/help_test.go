@@ -28,6 +28,7 @@ func TestHelp(t *testing.T) {
 				"del => d, r, rm",
 				"help => h",
 				"Arguments:",
+				"Adding a description already stored fails, including tasks tagged +done.",
 				"Operators:",
 				"Everything is ordinary text except the operator forms below.",
 				"+ID Add a reference",

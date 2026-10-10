@@ -18,6 +18,9 @@ func TestAddInput(t *testing.T) {
 		{"missing description", "First\n\n+ready\nLast", "", "line 3: task description cannot be empty"},
 		{"missing connection", "First\n\nSecond +999\nLast", "", "line 3: connection target 999"},
 		{"batch connection", "First\nSecond +2", "", "line 2: connection target 2"},
+		{"stored duplicate", "First +1\n\nExisting +ready\nLast", "", "line 3: task already exists (1)"},
+		{"input duplicate", "First +ready\n\n First\t +later\nLast", "", "line 3: duplicate task description \"First\" in input"},
+		{"case-sensitive descriptions", "existing\nFirst\nfirst", "2 existing\n3 First\n4 first\n", ""},
 		{"long line", strings.Repeat("x", 70000), "2 " + strings.Repeat("x", 70000) + "\n", ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {

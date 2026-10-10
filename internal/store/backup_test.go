@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -124,7 +125,7 @@ func TestBackupRetention(t *testing.T) {
 				t.Setenv("TODO_BACKUP", test.count+"@.todo")
 			}
 			for index := 0; index < 12; index++ {
-				if _, err := database.Add("Task", nil, nil); err != nil {
+				if _, err := database.Add(fmt.Sprintf("Task %d", index), nil, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
