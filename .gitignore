@@ -1,6 +1,6 @@
 /tmp
 /dist
-.todo/
+.todo*
 *.sqlite
 *.sqlite-*
-/todo.txt
+
