@@ -199,3 +199,8 @@ Todo - A lightweight project todo list
   Tasks use the stable format `ID DESCRIPTION +TAG +REFERENCE`. Terminal output
   adds color and wrapping; redirected output remains plain, one task per line.
   Set NO_COLOR to a non-empty value to disable terminal colors.
+
+**Local guidelines file:**
+
+  Create .todo-guidelines.txt beside the database to include project-specific
+  conventions in this help output. Use plain text and keep it short.

@@ -60,6 +60,8 @@ func TestHelp(t *testing.T) {
 				"export TODO_BACKUP=30@.todo",
 				".backupid",
 				"NO_COLOR",
+				"Local guidelines file:",
+				"Create .todo-guidelines.txt beside the database",
 			} {
 				if !strings.Contains(text, strings.Join(strings.Fields(expected), " ")) {
 					t.Fatalf("help does not contain %q:\n%s", expected, stdout.String())

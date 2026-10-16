@@ -70,8 +70,7 @@ func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, s
 	switch command {
 	case "help", "--help", "-h":
 		_, terminal := terminalWriter(stdout)
-		_, err := fmt.Fprint(stdout, formatManual(terminal && os.Getenv("NO_COLOR") == ""))
-		return err
+		return runHelp(stdout, terminal && os.Getenv("NO_COLOR") == "")
 	case "version", "--version":
 		_, err := fmt.Fprintln(stdout, version)
 		return err
