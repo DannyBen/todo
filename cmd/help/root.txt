@@ -11,7 +11,7 @@ Todo - A lightweight project todo list
 **Aliases:**
 
   add  => a, n, new
-  list => l, ls
+  list => l, ls, show
   edit => e
   del  => d, r, rm
   help => h
