@@ -22,7 +22,7 @@ const usage = `Todo - A lightweight project todo list
 Usage:
   todo add TEXT...
   todo list FILTER...
-  todo edit ID [TEXT...]
+  todo edit FILTER [TEXT...]
   todo del FILTER...
   todo help
 `
@@ -230,15 +230,15 @@ func matchingTasks(database *store.Store, args []string) ([]task.Task, error) {
 
 func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
 	if len(args) < 1 {
-		return usageError{message: "usage: todo edit ID [TEXT...]"}
+		return usageError{message: "usage: todo edit FILTER [TEXT...]"}
 	}
-	selection, err := task.ParseSelection(args[0])
+	selection, err := task.ParseEditSelection(args[0])
 	if err != nil {
 		return err
 	}
 	if len(args) == 1 {
 		if selection.Bulk() {
-			return fmt.Errorf("multiple task IDs require an edit expression")
+			return fmt.Errorf("bulk filters require an edit expression")
 		}
 		id, err := parseID(args[0])
 		if err != nil {

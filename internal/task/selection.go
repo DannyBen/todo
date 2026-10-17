@@ -5,13 +5,22 @@ import (
 	"strings"
 )
 
-// Selection selects explicit IDs, inclusive ranges, and connections, joined with OR.
+// Selection selects tasks using predicates joined with OR.
 type Selection struct {
 	parts []filterPredicate
 	bulk  bool
 }
 
 func ParseSelection(value string) (Selection, error) {
+	return parseSelection(value, false)
+}
+
+// ParseEditSelection also accepts tags and tag exclusions for bulk edits.
+func ParseEditSelection(value string) (Selection, error) {
+	return parseSelection(value, true)
+}
+
+func parseSelection(value string, allowTags bool) (Selection, error) {
 	parts := selectionParts(value)
 	selection := Selection{bulk: len(parts) > 1}
 	for _, part := range parts {
@@ -19,7 +28,8 @@ func ParseSelection(value string) (Selection, error) {
 		if err != nil {
 			return Selection{}, err
 		}
-		if predicate.kind != idFilter && predicate.kind != rangeFilter && predicate.kind != includeReferenceFilter {
+		tag := predicate.kind == includeTagFilter || predicate.kind == excludeTagFilter
+		if predicate.kind != idFilter && predicate.kind != rangeFilter && predicate.kind != includeReferenceFilter && !(allowTags && tag) {
 			return Selection{}, fmt.Errorf("invalid task ID %q", value)
 		}
 		selection.parts = append(selection.parts, predicate)

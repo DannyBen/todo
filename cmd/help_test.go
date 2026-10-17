@@ -20,6 +20,7 @@ func TestHelp(t *testing.T) {
 			text := strings.Join(strings.Fields(stdout.String()), " ")
 			for _, expected := range []string{
 				"todo add TEXT...",
+				"todo edit FILTER [TEXT...]",
 				"todo del FILTER...",
 				"todo help",
 				"add => a, n, new",
@@ -43,13 +44,14 @@ func TestHelp(t *testing.T) {
 				"ID..ID Inclusive task ID range",
 				"todo edit 2..4/8 +hi",
 				"Ranges select existing IDs, not a count of tasks.",
-				"Bulk selectors (ranges, connections, `ID+`, or selections joined with `/`) cannot replace task",
+				"Bulk filters (tags, ranges, connections, `ID+`, or alternatives joined with `/`) cannot replace task",
 				":OP Treat a leading + or - as text",
 				"todo add Test the :-h flag and :+draft syntax",
 				"todo list :-h",
-				"Spaces between filters mean AND",
+				"For list and del, spaces between filters mean AND",
 				"Examples:",
 				"todo edit 1 -now +done",
+				"todo edit +v4/+v5 -v4 -v5 +next",
 				"List task 2 and its connected tasks:",
 				"todo list 2+",
 				"todo del +done",
@@ -91,7 +93,7 @@ func TestMainUsageIsConcise(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected usage error")
 	}
-	for _, expected := range []string{"todo add TEXT...", "todo edit ID [TEXT...]", "todo del FILTER...", "todo help"} {
+	for _, expected := range []string{"todo add TEXT...", "todo edit FILTER [TEXT...]", "todo del FILTER...", "todo help"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("usage does not contain %q:\n%s", expected, err)
 		}

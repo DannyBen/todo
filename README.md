@@ -62,7 +62,7 @@ Prebuilt archives for macOS and Linux are available on the repository's
 ```
 todo add TEXT...
 todo list FILTER...
-todo edit ID [TEXT...]
+todo edit FILTER [TEXT...]
 todo del FILTER...
 todo help
 ```
@@ -83,11 +83,18 @@ Add tasks in bulk from a file.
 
 Edit task text, tags, or both directly from the command line.
 
+Edit tags in bulk with `todo edit +v4 +release`.
+FILTER is the first argument; join alternatives with `/`:
+
+```bash
+todo edit +v4/+v5 -v4 -v5 +next
+```
+
 <img src="support/vhs/edit.gif" width="500">
 
 ### Editing tasks interactively
 
-Run `todo edit ID` without text to edit the complete task interactively.
+Use a single task ID as FILTER and omit text to edit the task interactively.
 
 <img src="support/vhs/edit-interactive.gif" width="500">
 
