@@ -1,6 +1,18 @@
 Changelog
 ========================================
 
+v0.2.4 - 2026-10-17
+----------------------------------------
+
+- Avoid creting database on benign commands
+- Add n and r as aliases to new and rm
+- Block duplicate tasks
+- Add show as alias to list
+- Add support for local guidelines file
+- Allow dots in tags
+- Allow editing multiple tasks
+
+
 v0.2.3 - 2026-10-03
 ----------------------------------------
 
