@@ -66,6 +66,10 @@ Todo - A lightweight project todo list
           todo add Test the :-h flag and :+draft syntax
           todo list :-h
 
+  Tags start with an ASCII letter or digit, followed by ASCII letters,
+  digits, hyphens, underscores, or dots (for example, +v0.1.0).
+  Pure numbers are connections.
+
   A prefix is special only when the whole token is valid. `+tag` adds a tag;
   the separate words `+ tag` are ordinary text. Invalid operations and
   standalone `+`, `-`, or `--` are also ordinary text.

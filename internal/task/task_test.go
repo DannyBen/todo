@@ -46,6 +46,22 @@ func TestParseChangeDistinguishesNumericReferencesFromTags(t *testing.T) {
 	}
 }
 
+func TestParseChangeDottedTags(t *testing.T) {
+	change, err := ParseChange([]string{"Ship", "+v0.1.0", "-v0.0.9", "+1.2", "+file.txt", "+v1..", "+.hidden", ":+literal.txt", ":-literal.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(change.AddTags, ","), "v0.1.0,1.2,file.txt,v1.."; got != want {
+		t.Fatalf("added tags = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(change.RemoveTags, ","), "v0.0.9"; got != want {
+		t.Fatalf("removed tags = %q, want %q", got, want)
+	}
+	if change.Description == nil || *change.Description != "Ship +.hidden +literal.txt -literal.txt" {
+		t.Fatalf("description = %v", change.Description)
+	}
+}
+
 func TestParseChangeNormalizesNewlines(t *testing.T) {
 	change, err := ParseChange([]string{"first line\nsecond\tline", "+done"})
 	if err != nil {

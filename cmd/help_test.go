@@ -486,6 +486,31 @@ func TestSlashSeparatedIDs(t *testing.T) {
 	}
 }
 
+func TestDottedTags(t *testing.T) {
+	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+	steps := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"add", "Release", "+v0.1.0"}, "1 Release +v0.1.0\n"},
+		{[]string{"add", "Other", "+v0.2.0"}, "2 Other +v0.2.0\n"},
+		{[]string{"list", "+v0.1.0"}, "1 Release +v0.1.0\n"},
+		{[]string{"list", "-v0.1.0"}, "2 Other +v0.2.0\n"},
+		{[]string{"list", "+v0.1.0/+v0.2.0"}, "1 Release +v0.1.0\n2 Other +v0.2.0\n"},
+		{[]string{"edit", "1", "-v0.1.0", "+v0.2.0"}, "1 Release +v0.2.0\n"},
+		{[]string{"list", "+v0.1.0"}, ""},
+	}
+	for _, step := range steps {
+		var stdout bytes.Buffer
+		if err := Execute(step.args, "test", &stdout); err != nil {
+			t.Fatalf("%v: %v", step.args, err)
+		}
+		if got := stdout.String(); got != step.want {
+			t.Fatalf("%v: output = %q, want %q", step.args, got, step.want)
+		}
+	}
+}
+
 func TestTagFilterOR(t *testing.T) {
 	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	for _, args := range [][]string{

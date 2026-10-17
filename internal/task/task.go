@@ -352,7 +352,7 @@ func validTag(value string) bool {
 		return false
 	}
 	for index := 1; index < len(value); index++ {
-		if !asciiLetterOrDigit(value[index]) && value[index] != '-' && value[index] != '_' {
+		if !asciiLetterOrDigit(value[index]) && value[index] != '-' && value[index] != '_' && value[index] != '.' {
 			return false
 		}
 	}
