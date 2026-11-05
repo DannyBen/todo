@@ -106,7 +106,7 @@ func executeWithInteraction(args []string, version string, stdin io.Reader, stdo
 	defer database.Close()
 
 	if len(args) == 1 && (command == "edit" || command == "del") {
-		return runSelection(database, command, stdin, stdout, stderr, prompt, selectPrompt)
+		return runSelection(database, command, nil, stdin, stdout, stderr, prompt, selectPrompt)
 	}
 
 	switch command {
@@ -115,7 +115,7 @@ func executeWithInteraction(args []string, version string, stdin io.Reader, stdo
 	case "list":
 		return runList(database, args[1:], stdout)
 	case "edit":
-		return runEdit(database, args[1:], stdin, stdout, stderr, prompt)
+		return runEdit(database, args[1:], stdin, stdout, stderr, prompt, selectPrompt)
 	case "del":
 		return runDelete(database, args[1:], stdout)
 	}
@@ -236,7 +236,7 @@ func matchingTasks(database *store.Store, args []string) ([]task.Task, error) {
 	return matches, nil
 }
 
-func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
+func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt, selectPrompt selectionPrompt) error {
 	if len(args) < 1 {
 		return usageError{message: "usage: todo edit [FILTER] [TEXT...]"}
 	}
@@ -246,7 +246,7 @@ func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stde
 	}
 	if len(args) == 1 {
 		if selection.Bulk() {
-			return fmt.Errorf("bulk filters require an edit expression")
+			return runSelection(database, "edit", &selection, stdin, stdout, stderr, prompt, selectPrompt)
 		}
 		id, err := parseID(args[0])
 		if err != nil {

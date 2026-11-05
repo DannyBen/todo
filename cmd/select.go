@@ -20,10 +20,27 @@ import (
 
 type selectionPrompt func([]task.Task, string, io.Reader, io.Writer) ([]int64, error)
 
-func runSelection(database *store.Store, command string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt, selectPrompt selectionPrompt) error {
+func runSelection(database *store.Store, command string, filter *task.Selection, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt, selectPrompt selectionPrompt) error {
 	items, err := database.List()
 	if err != nil {
 		return err
+	}
+	if filter != nil {
+		ids, err := filter.Resolve(items)
+		if err != nil {
+			return err
+		}
+		matched := make(map[int64]bool, len(ids))
+		for _, id := range ids {
+			matched[id] = true
+		}
+		var matches []task.Task
+		for _, item := range items {
+			if matched[item.ID] {
+				matches = append(matches, item)
+			}
+		}
+		items = matches
 	}
 	if len(items) == 0 {
 		_, err := fmt.Fprintln(stderr, "No tasks to select.")
@@ -42,7 +59,7 @@ func runSelection(database *store.Store, command string, stdin io.Reader, stdout
 		return runDelete(database, []string{selector}, stdout)
 	}
 	if len(ids) == 1 {
-		return runEdit(database, []string{selector}, stdin, stdout, stderr, prompt)
+		return runInteractiveEdit(database, ids[0], stdin, stdout, stderr, prompt)
 	}
 	expression, err := prompt(selector, "", stdin, stderr)
 	if errors.Is(err, errEditCanceled) {
@@ -51,13 +68,16 @@ func runSelection(database *store.Store, command string, stdin io.Reader, stdout
 	if err != nil || strings.TrimSpace(expression) == "" {
 		return err
 	}
-	return runEdit(database, []string{selector, expression}, stdin, stdout, stderr, prompt)
+	return runEdit(database, []string{selector, expression}, stdin, stdout, stderr, prompt, selectPrompt)
 }
 
 func selectTasks(items []task.Task, command string, stdin io.Reader, stderr io.Writer) (ids []int64, err error) {
 	input, ok := stdin.(*os.File)
 	output, outputTerminal := terminalWriter(stderr)
 	if !ok || !term.IsTerminal(int(input.Fd())) || !outputTerminal {
+		if command == "edit" {
+			return nil, fmt.Errorf("interactive selection requires a terminal; provide a filter and edit expression after todo edit")
+		}
 		return nil, fmt.Errorf("interactive selection requires a terminal; provide a filter after todo %s", command)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, unix.SIGTERM, unix.SIGHUP, unix.SIGQUIT)

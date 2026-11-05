@@ -100,6 +100,8 @@ A single task opens with its full expression; multiple tasks open an empty
 prompt for shared tag and connection operations.
 
 Use `todo edit ID` to open a task directly in the inline editor.
+Use `todo edit +TAG` to select from matching tasks. Ranges, connections, and
+alternatives joined with `/` can also narrow the list.
 
 <img src="support/vhs/edit-interactive.gif" width="500">
 

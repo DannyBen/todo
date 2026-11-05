@@ -30,54 +30,139 @@ func TestSelectedCommands(t *testing.T) {
 		{name: "cancel bulk prompt", command: "edit", ids: []int64{1, 3}, cancel: true},
 		{name: "empty bulk prompt", command: "edit", ids: []int64{1, 3}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		filters := []string{""}
+		if tc.command == "edit" || tc.command == "e" {
+			filters = append(filters, "+old")
+		}
+		for _, filter := range filters {
+			t.Run(tc.name+"/"+filter, func(t *testing.T) {
+				t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
+				var stdout, stderr bytes.Buffer
+				for _, name := range []string{"First", "Second", "Third"} {
+					if err := Execute([]string{"add", name, "+old"}, "test", &stdout); err != nil {
+						t.Fatal(err)
+					}
+				}
+				stdout.Reset()
+				selectPrompt := func(items []task.Task, command string, _ io.Reader, _ io.Writer) ([]int64, error) {
+					if len(items) != 3 || command != "edit" && command != "del" {
+						t.Fatalf("unexpected selector input: %v %s", items, command)
+					}
+					return tc.ids, nil
+				}
+				prompt := func(selector, current string, _ io.Reader, _ io.Writer) (string, error) {
+					if len(tc.ids) == 1 && (selector != "1" && selector != "2" || current == "") {
+						t.Fatalf("single prompt: %q %q", selector, current)
+					}
+					if len(tc.ids) > 1 && (selector != "1/3" || current != "") {
+						t.Fatalf("bulk prompt: %q %q", selector, current)
+					}
+					if tc.cancel {
+						return "", errEditCanceled
+					}
+					return tc.expression, nil
+				}
+				args := []string{tc.command}
+				if filter != "" {
+					args = append(args, filter)
+				}
+				err := executeWithInteraction(args, "test", strings.NewReader(""), &stdout, &stderr, prompt, selectPrompt)
+				if tc.errorText != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.errorText) {
+						t.Fatalf("error = %v, want %s", err, tc.errorText)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if tc.want == "" && stdout.Len() != 0 {
+					t.Fatalf("canceled or failed action printed %q", stdout.String())
+				}
+				stdout.Reset()
+				if err := Execute([]string{"list"}, "test", &stdout); err != nil {
+					t.Fatal(err)
+				}
+				want := tc.want
+				if want == "" {
+					want = "1 First +old\n2 Second +old\n3 Third +old\n"
+				}
+				if stdout.String() != want {
+					t.Fatalf("tasks = %q, want %q", stdout.String(), want)
+				}
+			})
+		}
+	}
+}
+
+func TestFilteredEditSelection(t *testing.T) {
+	for _, tc := range []struct {
+		filter string
+		want   []int64
+		err    string
+	}{
+		{filter: "+work", want: []int64{1, 2}},
+		{filter: "-work", want: []int64{3, 4}},
+		{filter: "2/1", want: []int64{1, 2}},
+		{filter: "1..2", want: []int64{1, 2}},
+		{filter: "..2", want: []int64{1, 2}},
+		{filter: "3..", want: []int64{3, 4}},
+		{filter: "+1", want: []int64{2}},
+		{filter: "1+", want: []int64{1, 2}},
+		{filter: "3/+work/1..2", want: []int64{1, 2, 3}},
+		{filter: "+solo", want: []int64{3}},
+		{filter: "1..1", want: []int64{1}},
+		{filter: "1/1", want: []int64{1}},
+		{filter: "+missing", err: "no tasks match selection"},
+		{filter: "8..", err: "no tasks match selection"},
+		{filter: "+work/99", err: "task 99 not found"},
+		{filter: "99+", err: "task 99 not found"},
+		{filter: "work", err: "invalid task ID"},
+		{filter: "+work -solo", err: "invalid task ID"},
+	} {
+		t.Run(tc.filter, func(t *testing.T) {
 			t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
-			var stdout, stderr bytes.Buffer
-			for _, name := range []string{"First", "Second", "Third"} {
-				if err := Execute([]string{"add", name, "+old"}, "test", &stdout); err != nil {
+			for _, args := range [][]string{
+				{"add", "First", "+work"},
+				{"add", "Second", "+work", "+1"},
+				{"add", "Third", "+solo"},
+				{"add", "Fourth"},
+			} {
+				if err := Execute(args, "test", &bytes.Buffer{}); err != nil {
 					t.Fatal(err)
 				}
 			}
-			stdout.Reset()
+			called := false
 			selectPrompt := func(items []task.Task, command string, _ io.Reader, _ io.Writer) ([]int64, error) {
-				if len(items) != 3 || command != "edit" && command != "del" {
-					t.Fatalf("unexpected selector input: %v %s", items, command)
+				called = true
+				var ids []int64
+				for _, item := range items {
+					ids = append(ids, item.ID)
 				}
-				return tc.ids, nil
+				if command != "edit" || !reflect.DeepEqual(ids, tc.want) {
+					t.Fatalf("selector = %s %v, want edit %v", command, ids, tc.want)
+				}
+				return nil, nil
 			}
-			prompt := func(selector, current string, _ io.Reader, _ io.Writer) (string, error) {
-				if len(tc.ids) == 1 && (selector != "1" && selector != "2" || current == "") {
-					t.Fatalf("single prompt: %q %q", selector, current)
-				}
-				if len(tc.ids) > 1 && (selector != "1/3" || current != "") {
-					t.Fatalf("bulk prompt: %q %q", selector, current)
-				}
-				if tc.cancel {
-					return "", errEditCanceled
-				}
-				return tc.expression, nil
+			prompt := func(string, string, io.Reader, io.Writer) (string, error) {
+				t.Fatal("edit prompt opened after cancellation or invalid filter")
+				return "", nil
 			}
-			err := executeWithInteraction([]string{tc.command}, "test", strings.NewReader(""), &stdout, &stderr, prompt, selectPrompt)
-			if tc.errorText != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.errorText) {
-					t.Fatalf("error = %v, want %s", err, tc.errorText)
+			var stdout, stderr bytes.Buffer
+			err := executeWithInteraction([]string{"edit", tc.filter}, "test", strings.NewReader(""), &stdout, &stderr, prompt, selectPrompt)
+			if tc.err != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.err) || called {
+					t.Fatalf("error = %v, picker opened = %v, want %q before selection", err, called, tc.err)
 				}
-			} else if err != nil {
-				t.Fatal(err)
+			} else if err != nil || !called {
+				t.Fatalf("error = %v, picker opened = %v", err, called)
 			}
-			if tc.want == "" && stdout.Len() != 0 {
-				t.Fatalf("canceled or failed action printed %q", stdout.String())
+			if stdout.Len() != 0 || stderr.Len() != 0 {
+				t.Fatalf("unexpected output: stdout %q, stderr %q", stdout.String(), stderr.String())
 			}
-			stdout.Reset()
 			if err := Execute([]string{"list"}, "test", &stdout); err != nil {
 				t.Fatal(err)
 			}
-			want := tc.want
-			if want == "" {
-				want = "1 First +old\n2 Second +old\n3 Third +old\n"
-			}
-			if stdout.String() != want {
-				t.Fatalf("tasks = %q, want %q", stdout.String(), want)
+			if want := "1 First +work +2\n2 Second +work +1\n3 Third +solo\n4 Fourth\n"; stdout.String() != want {
+				t.Fatalf("tasks changed: %q, want %q", stdout.String(), want)
 			}
 		})
 	}
@@ -88,11 +173,14 @@ func TestSelectionNeedsTerminal(t *testing.T) {
 	if err := Execute([]string{"add", "Keep"}, "test", &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
-	for _, command := range []string{"del", "edit"} {
+	for _, args := range [][]string{{"del"}, {"edit"}, {"edit", "1..1"}} {
 		var stdout bytes.Buffer
-		err := ExecuteWithIO([]string{command}, "test", strings.NewReader(""), &stdout, &bytes.Buffer{})
+		err := ExecuteWithIO(args, "test", strings.NewReader(""), &stdout, &bytes.Buffer{})
 		if err == nil || !strings.Contains(err.Error(), "interactive selection requires a terminal") || stdout.Len() != 0 {
-			t.Fatalf("%s: error = %v, stdout = %q", command, err, stdout.String())
+			t.Fatalf("%v: error = %v, stdout = %q", args, err, stdout.String())
+		}
+		if args[0] == "edit" && !strings.Contains(err.Error(), "provide a filter and edit expression") {
+			t.Fatalf("edit error lacks script instructions: %v", err)
 		}
 	}
 }

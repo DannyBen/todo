@@ -21,7 +21,6 @@ func TestConnectedIDCommands(t *testing.T) {
 		{args: []string{"del", "1+", "Second"}, want: "2 Second +1\n"},
 		{args: []string{"edit", "1+", "replacement"}, err: "bulk edits cannot replace"},
 		{args: []string{"edit", "3+", "replacement"}, err: "bulk edits cannot replace"},
-		{args: []string{"edit", "1+"}, err: "require an edit expression"},
 		{args: []string{"edit", "9+", "+done"}, err: "task 9 not found"},
 		{args: []string{"del", "9+"}, err: "task 9 not found"},
 	} {

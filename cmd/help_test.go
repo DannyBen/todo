@@ -31,6 +31,7 @@ func TestHelp(t *testing.T) {
 				"help => h",
 				"Interactive selection:",
 				"Space toggles a mark.",
+				"containing only matching tasks, even if just one task matches.",
 				"Description text is rejected.",
 				"Arguments:",
 				"Adding a description already stored fails, including tasks tagged +done.",
@@ -470,7 +471,7 @@ func TestSlashSeparatedIDs(t *testing.T) {
 	if err := Execute([]string{"edit", "1/99", "+rollback"}, "test", &bytes.Buffer{}); err == nil {
 		t.Fatal("multi-ID edit with missing task did not fail")
 	}
-	if err := Execute([]string{"edit", "1/2"}, "test", &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "require an edit expression") {
+	if err := ExecuteWithIO([]string{"edit", "1/2"}, "test", strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "interactive selection requires a terminal") {
 		t.Fatalf("interactive multi-ID edit error = %v", err)
 	}
 

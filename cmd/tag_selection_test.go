@@ -21,7 +21,6 @@ func TestTagEditSelection(t *testing.T) {
 		{args: []string{"+done", "+next"}, want: "3 Third +done +next +v5\n"},
 		{args: []string{"+missing/+v4", "+next"}, want: "1 First +next +v4\n2 Second +next +v4 +v5\n"},
 		{args: []string{"+v4", "-done", "+release"}, want: "1 First +release +v4\n2 Second +release +v4 +v5\n"},
-		{args: []string{"+v4"}, err: "require an edit expression"},
 		{args: []string{"+done", "replacement"}, err: "bulk edits cannot replace"},
 		{args: []string{"-done", "replacement"}, err: "bulk edits cannot replace"},
 		{args: []string{"+missing", "+next"}, err: "no tasks match selection"},

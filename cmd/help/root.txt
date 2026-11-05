@@ -117,6 +117,8 @@ Todo - A lightweight project todo list
 **Interactive selection:**
 
   With no arguments, `todo edit` and `todo del` open a scrollable task list.
+  With a filter and no edit expression, `todo edit +TAG` opens the same list
+  containing only matching tasks, even if just one task matches.
   Arrow keys move the cursor; Page Up/Down and Home/End also navigate.
   Space toggles a mark. Enter confirms the marked tasks; with none marked,
   Enter does nothing. Esc, q, or Ctrl+C aborts without changing tasks.
@@ -144,8 +146,8 @@ Todo - A lightweight project todo list
 
   Multiple IDs, ranges, connections, and tags receive the same tag and connection
   operations atomically. Bulk filters (tags, ranges, connections, `ID+`, or
-  alternatives joined with `/`) cannot replace task descriptions. On the command
-  line, they require an edit expression, even if only one task matches.
+  alternatives joined with `/`) cannot replace task descriptions when an edit
+  expression is supplied. Without an expression, they open interactive selection.
 
 **Deleting:**
 
@@ -160,6 +162,12 @@ Todo - A lightweight project todo list
 
   Find actionable production tasks:
     todo list +production +now -blocked
+
+  Select tasks interactively to edit:
+    todo edit
+
+  Select tasks tagged now interactively to edit:
+    todo edit +now
 
   Complete a task without replacing its description:
     todo edit 1 -now +done
@@ -186,6 +194,9 @@ Todo - A lightweight project todo list
   View the beginning or end of the list by ID:
     todo list ..10
     todo list 20..
+
+  Select tasks interactively to delete:
+    todo del
 
   Preview an ID range before deleting it:
     todo list 1..10

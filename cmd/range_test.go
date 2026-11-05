@@ -58,7 +58,6 @@ func TestBulkEditErrorsDoNotMutate(t *testing.T) {
 		{[]string{"edit", "1/1", "replacement"}, "bulk edits cannot replace"},
 		{[]string{"edit", "1..1", "replacement"}, "bulk edits cannot replace"},
 		{[]string{"edit", "..1", ":+literal"}, "bulk edits cannot replace"},
-		{[]string{"edit", "1..1"}, "require an edit expression"},
 		{[]string{"edit", "8..", "+ready"}, "no tasks match"},
 		{[]string{"del", "8.."}, "no tasks match"},
 		{[]string{"del", "1..2", "+missing"}, "no tasks match"},
