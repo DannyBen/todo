@@ -20,14 +20,18 @@ func TestHelp(t *testing.T) {
 			text := strings.Join(strings.Fields(stdout.String()), " ")
 			for _, expected := range []string{
 				"todo add TEXT...",
-				"todo edit FILTER [TEXT...]",
-				"todo del FILTER...",
+				"todo list [FILTER...]",
+				"todo edit [FILTER] [TEXT...]",
+				"todo del [FILTER...]",
 				"todo help",
 				"add => a, n, new",
 				"list => l, ls, show",
 				"edit => e",
 				"del => d, r, rm",
 				"help => h",
+				"Interactive selection:",
+				"Space toggles a mark.",
+				"Description text is rejected.",
 				"Arguments:",
 				"Adding a description already stored fails, including tasks tagged +done.",
 				"Operators:",
@@ -93,7 +97,7 @@ func TestMainUsageIsConcise(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected usage error")
 	}
-	for _, expected := range []string{"todo add TEXT...", "todo edit FILTER [TEXT...]", "todo del FILTER...", "todo help"} {
+	for _, expected := range []string{"todo add TEXT...", "todo list [FILTER...]", "todo edit [FILTER] [TEXT...]", "todo del [FILTER...]", "todo help"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("usage does not contain %q:\n%s", expected, err)
 		}
@@ -140,7 +144,6 @@ func TestUsageErrors(t *testing.T) {
 		{name: "no command", want: "Todo - A lightweight project todo list"},
 		{name: "unknown command", args: []string{"nope"}, want: `unknown command "nope"`},
 		{name: "add without description", args: []string{"add", "+ready"}, want: "task description cannot be empty"},
-		{name: "delete without filter", args: []string{"del"}, want: "usage: todo del FILTER..."},
 		{name: "invalid edit ID", args: []string{"edit", "bad", "+done"}, want: `invalid task ID "bad"`},
 		{name: "invalid delete ID", args: []string{"del", "0"}, want: `invalid task ID "0"`},
 		{name: "reserved filter", args: []string{"list", "=1"}, want: "filter prefix = is reserved"},
@@ -165,9 +168,9 @@ func TestInteractiveEditUsesTheSameExpressionSyntax(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	prompt := func(id int64, current string, stdin io.Reader, stderr io.Writer) (string, error) {
-		if id != 1 {
-			t.Fatalf("prompt ID = %d, want 1", id)
+	prompt := func(selector string, current string, stdin io.Reader, stderr io.Writer) (string, error) {
+		if selector != "1" {
+			t.Fatalf("prompt selector = %s, want 1", selector)
 		}
 		if current != "Typo task +ready" {
 			t.Fatalf("prompt text = %q, want current task expression", current)
@@ -193,7 +196,7 @@ func TestInteractiveEditCanBeCanceled(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	prompt := func(int64, string, io.Reader, io.Writer) (string, error) {
+	prompt := func(string, string, io.Reader, io.Writer) (string, error) {
 		return "", errEditCanceled
 	}
 	if err := executeWithPrompt([]string{"edit", "1"}, "test", strings.NewReader(""), &stdout, &bytes.Buffer{}, prompt); err != nil {
@@ -211,14 +214,14 @@ func TestInteractiveEditCanBeCanceled(t *testing.T) {
 }
 
 func TestInteractiveEditRequiresTerminal(t *testing.T) {
-	_, err := promptEdit(1, "Task", strings.NewReader(""), &bytes.Buffer{})
+	_, err := promptEdit("1", "Task", strings.NewReader(""), &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "interactive edit requires a terminal") {
 		t.Fatalf("error = %v, want terminal requirement", err)
 	}
 }
 
 func TestEditPromptFormatting(t *testing.T) {
-	hint, prompt := editPromptText(41, true)
+	hint, prompt := editPromptText("41", true)
 	if got, want := hint, "\x1b[1;36mEnter\x1b[0m saves · \x1b[1;36mCtrl+C\x1b[0m cancels"; got != want {
 		t.Fatalf("colored hint = %q, want %q", got, want)
 	}
@@ -226,7 +229,7 @@ func TestEditPromptFormatting(t *testing.T) {
 		t.Fatalf("colored prompt = %q, want %q", got, want)
 	}
 
-	hint, prompt = editPromptText(41, false)
+	hint, prompt = editPromptText("41", false)
 	if got, want := hint, "Enter saves · Ctrl+C cancels"; got != want {
 		t.Fatalf("plain hint = %q, want %q", got, want)
 	}

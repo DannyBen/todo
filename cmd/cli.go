@@ -21,9 +21,9 @@ const usage = `Todo - A lightweight project todo list
 
 Usage:
   todo add TEXT...
-  todo list FILTER...
-  todo edit FILTER [TEXT...]
-  todo del FILTER...
+  todo list [FILTER...]
+  todo edit [FILTER] [TEXT...]
+  todo del [FILTER...]
   todo help
 `
 
@@ -36,7 +36,7 @@ type usageError struct {
 
 func (err usageError) Error() string { return err.message }
 
-type editPrompt func(id int64, current string, stdin io.Reader, stderr io.Writer) (string, error)
+type editPrompt func(selector string, current string, stdin io.Reader, stderr io.Writer) (string, error)
 
 var errEditCanceled = errors.New("edit canceled")
 
@@ -49,6 +49,10 @@ func ExecuteWithIO(args []string, version string, stdin io.Reader, stdout, stder
 }
 
 func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
+	return executeWithInteraction(args, version, stdin, stdout, stderr, prompt, selectTasks)
+}
+
+func executeWithInteraction(args []string, version string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt, selectPrompt selectionPrompt) error {
 	if len(args) == 0 {
 		return usageError{message: strings.TrimSpace(usage)}
 	}
@@ -100,6 +104,10 @@ func executeWithPrompt(args []string, version string, stdin io.Reader, stdout, s
 		return err
 	}
 	defer database.Close()
+
+	if len(args) == 1 && (command == "edit" || command == "del") {
+		return runSelection(database, command, stdin, stdout, stderr, prompt, selectPrompt)
+	}
 
 	switch command {
 	case "add":
@@ -230,7 +238,7 @@ func matchingTasks(database *store.Store, args []string) ([]task.Task, error) {
 
 func runEdit(database *store.Store, args []string, stdin io.Reader, stdout, stderr io.Writer, prompt editPrompt) error {
 	if len(args) < 1 {
-		return usageError{message: "usage: todo edit FILTER [TEXT...]"}
+		return usageError{message: "usage: todo edit [FILTER] [TEXT...]"}
 	}
 	selection, err := task.ParseEditSelection(args[0])
 	if err != nil {
@@ -292,7 +300,7 @@ func runInteractiveEdit(database *store.Store, id int64, stdin io.Reader, stdout
 	if err != nil {
 		return err
 	}
-	edited, err := prompt(id, task.Expression(item), stdin, stderr)
+	edited, err := prompt(strconv.FormatInt(id, 10), task.Expression(item), stdin, stderr)
 	if errors.Is(err, errEditCanceled) {
 		return nil
 	}
@@ -302,14 +310,14 @@ func runInteractiveEdit(database *store.Store, id int64, stdin io.Reader, stdout
 	return applyEdit(database, id, strings.Fields(edited), stdout)
 }
 
-func promptEdit(id int64, current string, stdin io.Reader, stderr io.Writer) (edited string, err error) {
+func promptEdit(selector string, current string, stdin io.Reader, stderr io.Writer) (edited string, err error) {
 	input, inputIsTerminal := stdin.(*os.File)
 	_, outputIsTerminal := terminalWriter(stderr)
 	if !inputIsTerminal || !term.IsTerminal(int(input.Fd())) || !outputIsTerminal {
 		return "", fmt.Errorf("interactive edit requires a terminal; provide edit text after the task ID")
 	}
 
-	hint, prompt := editPromptText(id, os.Getenv("NO_COLOR") == "")
+	hint, prompt := editPromptText(selector, os.Getenv("NO_COLOR") == "")
 	if _, err := fmt.Fprintf(stderr, "%s\n\n", hint); err != nil {
 		return "", err
 	}
@@ -344,19 +352,29 @@ func promptEdit(id int64, current string, stdin io.Reader, stderr io.Writer) (ed
 	return edited, nil
 }
 
-func editPromptText(id int64, color bool) (hint, prompt string) {
+func editPromptText(selector string, color bool) (hint, prompt string) {
 	hint = "Enter saves · Ctrl+C cancels"
-	prompt = strconv.FormatInt(id, 10) + " "
+	if strings.Contains(selector, "/") {
+		hint = "Tags and connections only · " + hint
+	}
+	prompt = selector + " "
 	if color {
-		hint = "\x1b[1;36mEnter\x1b[0m saves · \x1b[1;36mCtrl+C\x1b[0m cancels"
-		prompt = "\x1b[1;33m" + strconv.FormatInt(id, 10) + "\x1b[0m "
+		hint = highlightKeys(hint, "Enter", "Ctrl+C")
+		prompt = "\x1b[1;33m" + selector + "\x1b[0m "
 	}
 	return hint, prompt
 }
 
+func highlightKeys(text string, keys ...string) string {
+	for _, key := range keys {
+		text = strings.ReplaceAll(text, key, "\x1b[1;36m"+key+"\x1b[0m")
+	}
+	return text
+}
+
 func runDelete(database *store.Store, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
-		return usageError{message: "usage: todo del FILTER..."}
+		return usageError{message: "usage: todo del [FILTER...]"}
 	}
 	if selection, err := task.ParseSelection(args[0]); len(args) == 1 && err == nil {
 		items, err := database.List()

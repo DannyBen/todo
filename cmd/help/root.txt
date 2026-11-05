@@ -3,9 +3,9 @@ Todo - A lightweight project todo list
 **Usage:**
 
   todo add TEXT...
-  todo list FILTER...
-  todo edit FILTER [TEXT...]
-  todo del FILTER...
+  todo list [FILTER...]
+  todo edit [FILTER] [TEXT...]
+  todo del [FILTER...]
   todo help
 
 **Aliases:**
@@ -114,6 +114,21 @@ Todo - A lightweight project todo list
   the offending line when available. Success prints all added tasks in input
   order. Empty input adds nothing and prints nothing.
 
+**Interactive selection:**
+
+  With no arguments, `todo edit` and `todo del` open a scrollable task list.
+  Arrow keys move the cursor; Page Up/Down and Home/End also navigate.
+  Space toggles a mark. Enter confirms the marked tasks; with none marked,
+  Enter does nothing. Esc, q, or Ctrl+C aborts without changing tasks.
+
+  For editing, one task opens in the inline editor with its full expression.
+  Multiple tasks open an empty prompt for shared tag and connection operations,
+  applied exactly like `todo edit 1/2 EXPRESSION`. Description text is rejected.
+  An empty bulk expression or Ctrl+C cancels the edit.
+
+  Deletion applies immediately to the marked tasks when Enter is pressed,
+  exactly like `todo del 1/2`. Both selectors require a terminal.
+
 **Editing:**
 
   FILTER selects tasks; everything after it edits them.
@@ -129,14 +144,14 @@ Todo - A lightweight project todo list
 
   Multiple IDs, ranges, connections, and tags receive the same tag and connection
   operations atomically. Bulk filters (tags, ranges, connections, `ID+`, or
-  alternatives joined with `/`) cannot replace task descriptions or open the
-  interactive editor, even if only one task matches.
+  alternatives joined with `/`) cannot replace task descriptions. On the command
+  line, they require an edit expression, even if only one task matches.
 
 **Deleting:**
 
-  `todo del` accepts the same filters as `todo list`. Use `todo list` to
-  preview. Deletion removes every match atomically and prints each removed task.
-  Keep this output if you need to recover the task details.
+  With filters, `todo del` accepts the same filters as `todo list`.
+  Use `todo list` to preview. Deletion removes every match atomically and prints
+  each removed task. Keep this output if you need to recover the task details.
 
 **Examples:**
 

@@ -61,9 +61,9 @@ Prebuilt archives for macOS and Linux are available on the repository's
 
 ```
 todo add TEXT...
-todo list FILTER...
-todo edit FILTER [TEXT...]
-todo del FILTER...
+todo list [FILTER...]
+todo edit [FILTER] [TEXT...]
+todo del [FILTER...]
 todo help
 ```
 
@@ -94,7 +94,12 @@ todo edit +v4/+v5 -v4 -v5 +next
 
 ### Editing tasks interactively
 
-Use a single task ID as FILTER and omit text to edit the task interactively.
+Run `todo edit` to select tasks from a scrollable list. Use arrows to move,
+Space to mark tasks, and Enter to edit. Esc, q, or Ctrl+C aborts selection.
+A single task opens with its full expression; multiple tasks open an empty
+prompt for shared tag and connection operations.
+
+Use `todo edit ID` to open a task directly in the inline editor.
 
 <img src="support/vhs/edit-interactive.gif" width="500">
 
@@ -105,6 +110,9 @@ Filter by text, ID, or tag, with AND, OR, and exclusions
 <img src="support/vhs/list.gif" width="500">
 
 ### Deleting tasks
+
+Run `todo del` to select tasks interactively. Space marks tasks and Enter deletes
+the marked tasks. Esc, q, or Ctrl+C aborts without deleting anything.
 
 Delete by ID or tag, with OR for multiple filters
 
