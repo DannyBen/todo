@@ -130,17 +130,20 @@ func TestSelectorNavigation(t *testing.T) {
 
 func TestSelectorText(t *testing.T) {
 	for _, tc := range []struct {
-		text string
-		cols int
-		want string
+		text  string
+		cols  int
+		want  string
+		color bool
 	}{
-		{"abcdef", 3, "abc"},
-		{"界ab", 3, "界a"},
-		{"e\u0301ab", 2, "e\u0301a"},
-		{"a\n\r\tb\x1b[H", 20, "ab[H"},
-		{"abc", 0, ""},
+		{"abcdef", 3, "abc", false},
+		{"界ab", 3, "界a", false},
+		{"e\u0301ab", 2, "e\u0301a", false},
+		{"a\n\r\tb\x1b[H", 20, "ab[H", false},
+		{"abc", 0, "", false},
+		{"\x1b[1;34m界abc\x1b[0m", 3, "\x1b[1;34m界a\x1b[0m", true},
+		{"\x1b[1mabc\x1b[H", 20, "\x1b[1mabc[H\x1b[0m", true},
 	} {
-		if got := selectorText(tc.text, tc.cols); got != tc.want {
+		if got := selectorText(tc.text, tc.cols, tc.color); got != tc.want {
 			t.Fatalf("selectorText(%q, %d) = %q, want %q", tc.text, tc.cols, got, tc.want)
 		}
 	}

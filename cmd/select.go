@@ -208,6 +208,7 @@ func (s *taskSelector) ids() []int64 {
 }
 
 func (s *taskSelector) render(command string, columns, rows int) string {
+	color := os.Getenv("NO_COLOR") == ""
 	page := max(1, rows-1)
 	s.top = max(0, min(s.top, len(s.items)-page))
 	if s.cursor < s.top {
@@ -226,15 +227,23 @@ func (s *taskSelector) render(command string, columns, rows int) string {
 		if s.marked[i] {
 			mark = "x"
 		}
-		screen.WriteString(selectorText(cursor+" ["+mark+"] "+task.Format(s.items[i]), max(0, columns-1)))
+		box, text := "["+mark+"]", task.Format(s.items[i])
+		if color {
+			box = "\x1b[1m" + box + "\x1b[0m"
+			if s.marked[i] {
+				box = "\x1b[1;36m[x]\x1b[0m"
+			}
+			text = task.FormatColor(s.items[i])
+		}
+		screen.WriteString(selectorText(cursor+" "+box+" "+text, max(0, columns-1), color))
 		screen.WriteString("\r\n")
 	}
 	verb := "delete"
 	if command == "edit" {
 		verb = "edit"
 	}
-	footer := selectorText("Space: mark for "+verb+"   Enter: confirm "+verb+"   Esc/q/Ctrl+C: abort", max(0, columns-1))
-	if os.Getenv("NO_COLOR") == "" {
+	footer := selectorText("Space: mark for "+verb+"   Enter: confirm "+verb+"   Esc/q/Ctrl+C: abort", max(0, columns-1), false)
+	if color {
 		footer = highlightKeys(footer, "Space", "Enter", "Esc", "q", "Ctrl+C")
 	}
 	fmt.Fprintf(&screen, "\x1b[%d;1H%s", max(1, rows), footer)
@@ -242,10 +251,23 @@ func (s *taskSelector) render(command string, columns, rows int) string {
 }
 
 // Keep every task on one row, including wide characters, and prevent stored
-// control characters from moving the cursor or writing terminal commands.
-func selectorText(text string, columns int) string {
+// control characters from moving the cursor. Only color/style escapes survive.
+func selectorText(text string, columns int, color bool) string {
 	var result strings.Builder
-	for _, r := range text {
+	runes := []rune(text)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if color && r == '\x1b' && i+1 < len(runes) && runes[i+1] == '[' {
+			end := i + 2
+			for end < len(runes) && (runes[end] >= '0' && runes[end] <= '9' || runes[end] == ';') {
+				end++
+			}
+			if end < len(runes) && runes[end] == 'm' {
+				result.WriteString(string(runes[i : end+1]))
+				i = end
+				continue
+			}
+		}
 		if unicode.IsControl(r) {
 			continue
 		}
@@ -260,6 +282,9 @@ func selectorText(text string, columns int) string {
 		}
 		result.WriteRune(r)
 		columns -= cells
+	}
+	if color {
+		result.WriteString("\x1b[0m")
 	}
 	return result.String()
 }
