@@ -13,7 +13,7 @@ Todo - A lightweight project todo list
   add  => a, n, new
   list => l, ls, show
   edit => e
-  del  => d, r, rm
+  del  => rm
   help => h
 
 **Arguments:**

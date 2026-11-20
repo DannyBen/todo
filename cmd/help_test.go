@@ -27,7 +27,7 @@ func TestHelp(t *testing.T) {
 				"add => a, n, new",
 				"list => l, ls, show",
 				"edit => e",
-				"del => d, r, rm",
+				"del => rm",
 				"help => h",
 				"Interactive selection:",
 				"Space toggles a mark.",
@@ -277,30 +277,37 @@ func TestDatabaseFileResolution(t *testing.T) {
 	}
 }
 
-func TestSingleLetterAliasWorkflow(t *testing.T) {
+func TestAliasWorkflow(t *testing.T) {
 	t.Setenv("TODO_FILE", filepath.Join(t.TempDir(), "tasks.sqlite"))
 	t.Setenv("TODO_BACKUP", "")
 	var stdout bytes.Buffer
 	for _, step := range []struct {
-		args []string
-		want string
+		args    []string
+		want    string
+		wantErr string
 	}{
-		{[]string{"a", "Check", "aliases", "+now"}, "1 Check aliases +now\n"},
-		{[]string{"l", "+now"}, "1 Check aliases +now\n"},
-		{[]string{"show", "+now"}, "1 Check aliases +now\n"},
-		{[]string{"e", "1", "-now", "+done"}, "1 Check aliases +done\n"},
-		{[]string{"l", "+now"}, ""},
-		{[]string{"show", "+now"}, ""},
-		{[]string{"d", "+done"}, "1 Check aliases +done\n"},
-		{[]string{"l"}, ""},
-		{[]string{"n", "Check", "new", "aliases", "+now"}, "2 Check new aliases +now\n"},
-		{[]string{"l", "+now"}, "2 Check new aliases +now\n"},
-		{[]string{"r", "+now"}, "2 Check new aliases +now\n"},
-		{[]string{"l"}, ""},
+		{args: []string{"a", "Check", "aliases", "+now"}, want: "1 Check aliases +now\n"},
+		{args: []string{"l", "+now"}, want: "1 Check aliases +now\n"},
+		{args: []string{"show", "+now"}, want: "1 Check aliases +now\n"},
+		{args: []string{"e", "1", "-now", "+done"}, want: "1 Check aliases +done\n"},
+		{args: []string{"l", "+now"}},
+		{args: []string{"show", "+now"}},
+		{args: []string{"d", "+done"}, wantErr: `unknown command "d"`},
+		{args: []string{"rm", "+done"}, want: "1 Check aliases +done\n"},
+		{args: []string{"l"}},
+		{args: []string{"n", "Check", "new", "aliases", "+now"}, want: "2 Check new aliases +now\n"},
+		{args: []string{"r", "+now"}, wantErr: `unknown command "r"`},
+		{args: []string{"l", "+now"}, want: "2 Check new aliases +now\n"},
+		{args: []string{"del", "+now"}, want: "2 Check new aliases +now\n"},
+		{args: []string{"l"}},
 	} {
 		stdout.Reset()
-		if err := Execute(step.args, "test", &stdout); err != nil {
+		err := Execute(step.args, "test", &stdout)
+		if step.wantErr == "" && err != nil {
 			t.Fatalf("%v: %v", step.args, err)
+		}
+		if step.wantErr != "" && (err == nil || !strings.Contains(err.Error(), step.wantErr)) {
+			t.Fatalf("%v error = %v, want containing %q", step.args, err, step.wantErr)
 		}
 		if got := stdout.String(); got != step.want {
 			t.Fatalf("%v output = %q, want %q", step.args, got, step.want)

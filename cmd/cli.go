@@ -63,7 +63,7 @@ func executeWithInteraction(args []string, version string, stdin io.Reader, stdo
 		command = "list"
 	case "a", "n", "new":
 		command = "add"
-	case "d", "r", "rm":
+	case "rm":
 		command = "del"
 	case "e":
 		command = "edit"
